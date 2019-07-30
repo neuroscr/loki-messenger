@@ -167,7 +167,7 @@
 
       if (this.id === this.ourNumber) {
         this.set({ friendRequestStatus: FriendRequestStatusEnum.friends });
-      } else if (lokiP2pAPI) {
+      } else if (typeof lokiP2pAPI !== 'undefined') {
         // Online status handling, only for contacts that aren't us
         this.set({ isOnline: lokiP2pAPI.isOnline(this.id) });
       } else {
@@ -192,6 +192,9 @@
 
     isMe() {
       return this.id === this.ourNumber;
+    },
+    isPublic() {
+      return this.id.match(/^publicChat:/);
     },
     isBlocked() {
       return BlockedNumberController.isBlocked(this.id);
@@ -362,6 +365,11 @@
     async onP2pMessageSent(pubKey, timestamp) {
       const messages = this._getMessagesWithTimestamp(pubKey, timestamp);
       await Promise.all(messages.map(m => m.setIsP2p(true)));
+    },
+
+    async onPublicMessageSent(pubKey, timestamp) {
+      const messages = this._getMessagesWithTimestamp(pubKey, timestamp);
+      await Promise.all(messages.map(m => m.setIsPublic(true)));
     },
 
     async onNewMessage(message) {
@@ -1345,6 +1353,9 @@
 
         const options = this.getSendOptions();
         options.messageType = message.get('type');
+        if (this.isPublic()) {
+          options.publicEndpoint = this.getEndpoint();
+        }
 
         const groupNumbers = this.getRecipients();
 
@@ -2006,6 +2017,26 @@
     },
     getNickname() {
       return this.get('nickname');
+    },
+    // maybe "Backend" instead of "Source"?
+    getPublicSource() {
+      if (!this.isPublic()) {
+        return null;
+      }
+      return {
+        server: this.get('server'),
+        channelId: this.get('channelId'),
+      };
+    },
+    // FIXME: remove or add public and/or "sending" hint to name...
+    getEndpoint() {
+      if (!this.isPublic()) {
+        return null;
+      }
+      const server = this.get('server');
+      const channelId = this.get('channelId');
+      const endpoint = `${server}/channels/${channelId}/messages`;
+      return endpoint;
     },
 
     // SIGNAL PROFILES

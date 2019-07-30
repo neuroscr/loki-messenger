@@ -97,6 +97,7 @@ module.exports = {
   updateConversation,
   removeConversation,
   getAllConversations,
+  getAllPublicConversations,
   getPubKeysWithFriendStatus,
   getAllConversationIds,
   getAllPrivateConversations,
@@ -770,6 +771,128 @@ async function updateSchema(instance) {
     // eslint-disable-next-line no-await-in-loop
     await runSchemaUpdate(schemaVersion, instance);
   }
+  await updateLokiSchema(instance);
+}
+
+const LOKI_SCHEMA_VERSIONS = [updateToLokiSchemaVersion1];
+
+async function updateToLokiSchemaVersion1(currentVersion, instance) {
+  if (currentVersion >= 1) {
+    return;
+  }
+  console.log('updateToLokiSchemaVersion1: starting...');
+  await instance.run('BEGIN TRANSACTION;');
+
+  const publicChatData = {
+    id: 'publicChat:1@chat.lokinet.org',
+    friendRequestStatus: 4, // Friends
+    sealedSender: 0,
+    sessionResetStatus: 0,
+    swarmNodes: [],
+    type: 'group',
+    server: 'https://chat.lokinet.org',
+    name: 'Loki Public Chat',
+    channelId: '1',
+    unlockTimestamp: null,
+    unreadCount: 0,
+    verified: 0,
+    version: 2,
+  };
+
+  const { id, type, name, friendRequestStatus } = publicChatData;
+
+  await instance.run(
+    `INSERT INTO conversations (
+    id,
+    json,
+
+    type,
+    members,
+    name,
+    friendRequestStatus
+  ) values (
+    $id,
+    $json,
+
+    $type,
+    $members,
+    $name,
+    $friendRequestStatus
+  );`,
+    {
+      $id: id,
+      $json: objectToJSON(publicChatData),
+
+      $type: type,
+      $members: null,
+      $name: name,
+      $friendRequestStatus: friendRequestStatus,
+    }
+  );
+
+  await instance.run(
+    `INSERT INTO loki_schema (
+        version
+      ) values (
+        1
+      );`
+  );
+  await instance.run('COMMIT TRANSACTION;');
+  console.log('updateToLokiSchemaVersion1: success!');
+}
+
+async function updateLokiSchema(instance) {
+  const result = await instance.get(
+    "SELECT name FROM sqlite_master WHERE type = 'table' AND name='loki_schema';"
+  );
+  if (!result) {
+    await createLokiSchemaTable(instance);
+  }
+  const lokiSchemaVersion = await getLokiSchemaVersion(instance);
+  console.log(
+    'updateLokiSchema:',
+    `Current loki schema version: ${lokiSchemaVersion};`,
+    `Most recent schema version: ${LOKI_SCHEMA_VERSIONS.length};`
+  );
+  for (
+    let index = 0, max = LOKI_SCHEMA_VERSIONS.length;
+    index < max;
+    index += 1
+  ) {
+    const runSchemaUpdate = LOKI_SCHEMA_VERSIONS[index];
+
+    // Yes, we really want to do this asynchronously, in order
+    // eslint-disable-next-line no-await-in-loop
+    await runSchemaUpdate(lokiSchemaVersion, instance);
+  }
+}
+
+async function getLokiSchemaVersion(instance) {
+  const result = await instance.get(
+    'SELECT MAX(version) as version FROM loki_schema;'
+  );
+  if (!result || !result.version) {
+    return 0;
+  }
+  return result.version;
+}
+
+async function createLokiSchemaTable(instance) {
+  await instance.run('BEGIN TRANSACTION;');
+  await instance.run(
+    `CREATE TABLE loki_schema(
+      id INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
+      version INTEGER
+    );`
+  );
+  await instance.run(
+    `INSERT INTO loki_schema (
+      version
+    ) values (
+      0
+    );`
+  );
+  await instance.run('COMMIT TRANSACTION;');
 }
 
 let db;
@@ -1471,6 +1594,17 @@ async function getAllPrivateConversations() {
   const rows = await db.all(
     `SELECT json FROM conversations WHERE
       type = 'private'
+     ORDER BY id ASC;`
+  );
+
+  return map(rows, row => jsonToObject(row.json));
+}
+
+async function getAllPublicConversations() {
+  const rows = await db.all(
+    `SELECT json FROM conversations WHERE
+      type = 'group' AND
+      id LIKE 'publicChat:%'
      ORDER BY id ASC;`
   );
 
