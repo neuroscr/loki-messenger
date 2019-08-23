@@ -373,6 +373,8 @@ OutgoingMessage.prototype = {
           ttl = 4 * 24 * 60 * 60 * 1000; // 4 days for friend request message
         } else if (this.messageType === 'onlineBroadcast') {
           ttl = 60 * 1000; // 1 minute for online broadcast message
+        } else if (this.messageType === 'typing') {
+          ttl = 60 * 1000; // 1 minute for typing indicators
         } else {
           const hours = window.getMessageTTL() || 24; // 1 day default for any other message
           ttl = hours * 60 * 60 * 1000;
@@ -411,12 +413,13 @@ OutgoingMessage.prototype = {
           error.name === 'HTTPError' &&
           (error.code === 410 || error.code === 409)
         ) {
-          if (!recurse)
+          if (!recurse) {
             return this.registerError(
               number,
               'Hit retry limit attempting to reload device list',
               error
             );
+          }
 
           let p;
           if (error.code === 409) {

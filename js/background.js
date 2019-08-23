@@ -116,6 +116,7 @@
     'warning.svg',
     'x.svg',
     'x_white.svg',
+    'icon-paste.svg',
     'loki/loki_icon_text.png',
     'loki/loki_icon_128.png',
   ]);
@@ -301,6 +302,11 @@
       getReadReceiptSetting: () => storage.get('read-receipt-setting'),
       setReadReceiptSetting: value =>
         storage.put('read-receipt-setting', value),
+
+      getTypingIndicatorsSetting: () =>
+        storage.get('typing-indicators-setting'),
+      setTypingIndicatorsSetting: value =>
+        storage.put('typing-indicators-setting', value),
 
       getLinkPreviewSetting: () => storage.get('linkPreviews', false),
       setLinkPreviewSetting: value => storage.put('linkPreviews', value),
@@ -744,14 +750,17 @@
       }
     });
 
-    Whisper.events.on('publicMessageSent', ({ pubKey, timestamp }) => {
-      try {
-        const conversation = ConversationController.get(pubKey);
-        conversation.onPublicMessageSent(pubKey, timestamp);
-      } catch (e) {
-        window.log.error('Error setting public on message');
+    Whisper.events.on(
+      'publicMessageSent',
+      ({ pubKey, timestamp, serverId }) => {
+        try {
+          const conversation = ConversationController.get(pubKey);
+          conversation.onPublicMessageSent(pubKey, timestamp, serverId);
+        } catch (e) {
+          window.log.error('Error setting public on message');
+        }
       }
-    });
+    );
 
     Whisper.events.on('password-updated', () => {
       if (appView && appView.inboxView) {
@@ -1029,7 +1038,7 @@
     }
 
     if (typingIndicators === true || typingIndicators === false) {
-      storage.put('typingIndicators', typingIndicators);
+      storage.put('typing-indicators-setting', typingIndicators);
     }
 
     if (linkPreviews === true || linkPreviews === false) {
@@ -1044,7 +1053,7 @@
     const { groupId, started } = typing || {};
 
     // We don't do anything with incoming typing messages if the setting is disabled
-    if (!storage.get('typingIndicators')) {
+    if (!storage.get('typing-indicators-setting')) {
       return;
     }
 

@@ -2,20 +2,12 @@
   "serverUrl": "random.snode",
   "localUrl": "localhost.loki",
   "cdnUrl": "random.snode",
-  "contentProxyUrl": "random.snode",
+  "contentProxyUrl": "",
   "localServerPort": "8081",
   "defaultPoWDifficulty": "100",
   "seedNodeList": [
     {
-      "ip": "3.104.19.14",
-      "port": "22023"
-    },
-    {
-      "ip": "13.238.53.205",
-      "port": "38157"
-    },
-    {
-      "ip": "imaginary.stream",
+      "ip": "storage.testnetseed1.loki.network",
       "port": "38157"
     }
   ],

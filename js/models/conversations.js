@@ -211,8 +211,8 @@
     },
 
     bumpTyping() {
-      // We don't send typing messages if the setting is disabled
-      if (!storage.get('typingIndicators')) {
+      // We don't send typing messages if the setting is disabled or we aren't friends
+      if (!this.isFriend() || !storage.get('typing-indicators-setting')) {
         return;
       }
 
@@ -277,6 +277,7 @@
       const groupNumbers = this.getRecipients();
 
       const sendOptions = this.getSendOptions();
+      sendOptions.messageType = 'typing';
       this.wrapSend(
         textsecure.messaging.sendTypingMessage(
           {
@@ -367,9 +368,14 @@
       await Promise.all(messages.map(m => m.setIsP2p(true)));
     },
 
-    async onPublicMessageSent(pubKey, timestamp) {
+    async onPublicMessageSent(pubKey, timestamp, serverId) {
       const messages = this._getMessagesWithTimestamp(pubKey, timestamp);
-      await Promise.all(messages.map(m => m.setIsPublic(true)));
+      await Promise.all(
+        messages.map(message => [
+          message.setIsPublic(true),
+          message.setServerId(serverId),
+        ])
+      );
     },
 
     async onNewMessage(message) {
@@ -1067,8 +1073,9 @@
 
       // Check if the pubkey length is 33 and leading with 05 or of length 32
       const len = this.id.length;
-      if ((len !== 33 * 2 || !/^05/.test(this.id)) && len !== 32 * 2)
+      if ((len !== 33 * 2 || !/^05/.test(this.id)) && len !== 32 * 2) {
         return 'Invalid Pubkey Format';
+      }
 
       this.set({ id: this.id });
       return null;
@@ -1432,8 +1439,9 @@
       messageType,
       success,
     }) {
-      if (success && messageType === 'friend-request')
+      if (success && messageType === 'friend-request') {
         await this.onFriendRequestSent();
+      }
       await Promise.all(
         (failoverNumbers || []).map(async number => {
           const conversation = ConversationController.get(number);
@@ -1949,7 +1957,12 @@
       //      conversation is viewed, another error message shows up for the contact
       read = read.filter(item => !item.hasErrors);
 
-      if (read.length && options.sendReadReceipts) {
+      // Do not send read receipt if not friends yet
+      if (!this.isFriend()) {
+        return;
+      }
+
+      if (!this.isPublic() && read.length && options.sendReadReceipts) {
         window.log.info(`Sending ${read.length} read receipts`);
         // Because syncReadMessages sends to our other devices, and sendReadReceipts goes
         //   to a contact, we need accessKeys for both.
@@ -2373,8 +2386,9 @@
 
     notify(message) {
       if (message.isFriendRequest()) {
-        if (this.hasSentFriendRequest())
+        if (this.hasSentFriendRequest()) {
           return this.notifyFriendRequest(message.get('source'), 'accepted');
+        }
         return this.notifyFriendRequest(message.get('source'), 'requested');
       }
       if (!message.isIncoming()) return Promise.resolve();
@@ -2411,8 +2425,9 @@
     async notifyFriendRequest(source, type) {
       // Data validation
       if (!source) throw new Error('Invalid source');
-      if (!['accepted', 'requested'].includes(type))
+      if (!['accepted', 'requested'].includes(type)) {
         throw new Error('Type must be accepted or requested.');
+      }
 
       // Call the notification on the right conversation
       let conversation = this;

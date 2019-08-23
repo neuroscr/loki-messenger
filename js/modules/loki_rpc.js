@@ -1,4 +1,4 @@
-/* global log, libloki, textsecure */
+/* global log, libloki, textsecure, getStoragePubKey */
 
 const nodeFetch = require('node-fetch');
 const { parse } = require('url');
@@ -77,6 +77,12 @@ const fetch = async (url, options = {}) => {
       throw new textsecure.WrongDifficultyError(difficulty);
     }
 
+    if (response.status === 406) {
+      throw new textsecure.TimestampError(
+        'Invalid Timestamp (check your clock)'
+      );
+    }
+
     if (!response.ok) {
       throw new textsecure.HTTPError('Loki_rpc error', response);
     }
@@ -113,6 +119,14 @@ const rpc = (
   const portString = port ? `:${port}` : '';
   const url = `${address}${portString}${endpoint}`;
   // TODO: The jsonrpc and body field will be ignored on storage server
+  if (params.pubKey) {
+    // Ensure we always take a copy
+    // eslint-disable-next-line no-param-reassign
+    params = {
+      ...params,
+      pubKey: getStoragePubKey(params.pubKey),
+    };
+  }
   const body = {
     jsonrpc: '2.0',
     id: '0',

@@ -48,7 +48,9 @@ class LokiPublicServerAPI {
     this.channels = [];
   }
   findOrCreateChannel(channelId, conversationId) {
-    let thisChannel = this.channels.find(channel => channel.channelId === channelId);
+    let thisChannel = this.channels.find(
+      channel => channel.channelId === channelId
+    );
     if (!thisChannel) {
       thisChannel = new LokiPublicChannelAPI(this, channelId, conversationId);
       this.channels.push(thisChannel);
@@ -155,7 +157,7 @@ class LokiPublicChannelAPI {
 
     if (success) {
       let receivedAt = new Date().getTime();
-      response.data.forEach(adnMessage => {
+      response.data.reverse().forEach(adnMessage => {
         let timestamp = new Date(adnMessage.created_at).getTime();
         let from = adnMessage.user.username;
         let source;
@@ -165,6 +167,7 @@ class LokiPublicChannelAPI {
         }
 
         const messageData = {
+          serverId: adnMessage.id,
           friendRequest: false,
           source,
           sourceDevice: 1,

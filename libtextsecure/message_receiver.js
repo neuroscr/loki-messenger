@@ -74,16 +74,7 @@ MessageReceiver.prototype.extend({
     this.httpPollingResource = new HttpResource(lokiMessageAPI, {
       handleRequest: this.handleRequest.bind(this),
     });
-    this.httpPollingResource.pollServer(connected => {
-      // Emulate receiving an 'empty' websocket messages from the server.
-      // This is required to update the internal logic that checks
-      // if we are connected to the server. Without this, for example,
-      // the loading screen would never disappear if the navigator
-      // detects internet connectivity but never receives an 'empty' signal.
-      if (connected) {
-        this.onEmpty();
-      }
-    });
+    this.httpPollingResource.pollServer();
     localLokiServer.on('message', this.handleP2pMessage.bind(this));
     lokiPublicChatAPI.on('publicMessage', this.handlePublicMessage.bind(this));
     this.startLocalServer();
@@ -1138,28 +1129,36 @@ MessageReceiver.prototype.extend({
   async innerHandleContentMessage(envelope, plaintext) {
     const content = textsecure.protobuf.Content.decode(plaintext);
 
-    if (content.preKeyBundleMessage)
+    if (content.preKeyBundleMessage) {
       await this.savePreKeyBundleMessage(
         envelope.source,
         content.preKeyBundleMessage
       );
-    if (content.lokiAddressMessage)
+    }
+    if (content.lokiAddressMessage) {
       return this.handleLokiAddressMessage(
         envelope,
         content.lokiAddressMessage
       );
-    if (content.syncMessage)
+    }
+    if (content.syncMessage) {
       return this.handleSyncMessage(envelope, content.syncMessage);
-    if (content.dataMessage)
+    }
+    if (content.dataMessage) {
       return this.handleDataMessage(envelope, content.dataMessage);
-    if (content.nullMessage)
+    }
+    if (content.nullMessage) {
       return this.handleNullMessage(envelope, content.nullMessage);
-    if (content.callMessage)
+    }
+    if (content.callMessage) {
       return this.handleCallMessage(envelope, content.callMessage);
-    if (content.receiptMessage)
+    }
+    if (content.receiptMessage) {
       return this.handleReceiptMessage(envelope, content.receiptMessage);
-    if (content.typingMessage)
+    }
+    if (content.typingMessage) {
       return this.handleTypingMessage(envelope, content.typingMessage);
+    }
 
     return null;
   },

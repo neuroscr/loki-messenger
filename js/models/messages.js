@@ -357,6 +357,9 @@
     onDestroy() {
       this.cleanup();
     },
+    deleteMessage() {
+      this.trigger('delete', this);
+    },
     async cleanup() {
       MessageController.unregister(this.id);
       this.unload();
@@ -1239,6 +1242,17 @@
         Message: Whisper.Message,
       });
     },
+    async setServerId(serverId) {
+      if (_.isEqual(this.get('serverId'), serverId)) return;
+
+      this.set({
+        serverId,
+      });
+
+      await window.Signal.Data.saveMessage(this.attributes, {
+        Message: Whisper.Message,
+      });
+    },
     async setIsPublic(isPublic) {
       if (_.isEqual(this.get('isPublic'), isPublic)) return;
 
@@ -2065,9 +2079,9 @@
 
           if (message.get('unread')) {
             // Need to do this here because the conversation has already changed states
-            if (autoAccept)
+            if (autoAccept) {
               await conversation.notifyFriendRequest(source, 'accepted');
-            else await conversation.notify(message);
+            } else await conversation.notify(message);
           }
 
           confirm();

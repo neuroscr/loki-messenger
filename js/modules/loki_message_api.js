@@ -110,7 +110,7 @@ class LokiMessageAPI {
         ],
       };
       try {
-        await nodeFetch(publicEndpoint, {
+        const result = await nodeFetch(publicEndpoint, {
           method: 'post',
           headers: {
             'Content-Type': 'application/json',
@@ -118,6 +118,8 @@ class LokiMessageAPI {
           },
           body: JSON.stringify(payload),
         });
+        const body = await result.json();
+        messageEventData.serverId = body.data.id;
         window.Whisper.events.trigger('publicMessageSent', messageEventData);
         return;
       } catch (e) {
@@ -141,7 +143,7 @@ class LokiMessageAPI {
     const timestamp = Date.now();
     const nonce = await calcNonce(
       messageEventData,
-      pubKey,
+      window.getStoragePubKey(pubKey),
       data64,
       timestamp,
       ttl
@@ -285,6 +287,9 @@ class LokiMessageAPI {
           throw e;
         } else if (e instanceof textsecure.NotFoundError) {
           // TODO: Handle resolution error
+        } else if (e instanceof textsecure.TimestampError) {
+          log.warn('Timestamp is invalid');
+          throw e;
         } else if (e instanceof textsecure.HTTPError) {
           // TODO: Handle working connection but error response
           const body = await e.response.text();
@@ -409,8 +414,9 @@ class LokiMessageAPI {
 
     const promises = [];
 
-    for (let i = 0; i < numConnections; i += 1)
+    for (let i = 0; i < numConnections; i += 1) {
       promises.push(this.openRetrieveConnection(stopPolling, callback));
+    }
 
     // blocks until all snodes in our swarms have been removed from the list
     // or if there is network issues (ENOUTFOUND due to lokinet)

@@ -263,6 +263,16 @@
     }
   }
 
+  function TimestampError(message) {
+    this.name = 'TimeStampError';
+
+    ReplayableError.call(this, {
+      name: 'TimestampError',
+      message,
+    });
+  }
+  inherit(ReplayableError, TimestampError);
+
   function PublicChatError(message) {
     this.name = 'PublicChatError';
     this.message = message;
@@ -293,5 +303,6 @@
   window.textsecure.NotFoundError = NotFoundError;
   window.textsecure.WrongSwarmError = WrongSwarmError;
   window.textsecure.WrongDifficultyError = WrongDifficultyError;
+  window.textsecure.TimestampError = TimestampError;
   window.textsecure.PublicChatError = PublicChatError;
 })();
