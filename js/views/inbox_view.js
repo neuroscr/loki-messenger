@@ -156,18 +156,20 @@
         .find('.network-status-container')
         .append(this.networkStatusView.render().el);
 
-      if (extension.expired()) {
-        const banner = new Whisper.ExpiredAlertBanner().render();
-        banner.$el.prependTo(this.$el);
-        this.$el.addClass('expired');
-      }
+      extension.expired((expired) => {
+        if (expired) {
+          const banner = new Whisper.ExpiredAlertBanner().render();
+          banner.$el.prependTo(this.$el);
+          this.$el.addClass('expired');
+        }
+      });
 
       // FIXME: Fix this for new react views
       this.updateInboxSectionUnread();
       this.setupLeftPane();
     },
     render_attributes: {
-      welcomeToSignal: i18n('welcomeToSignal'),
+      welcomeToSession: i18n('welcomeToSession'),
       selectAContact: i18n('selectAContact'),
     },
     events: {
@@ -393,7 +395,7 @@
 
   Whisper.ExpiredAlertBanner = Whisper.View.extend({
     templateName: 'expired_alert',
-    className: 'expiredAlert clearfix',
+    className: 'expiredAlert',
     render_attributes() {
       return {
         expiredWarning: i18n('expiredWarning'),
