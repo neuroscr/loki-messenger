@@ -2,7 +2,6 @@ import React from 'react';
 // import classNames from 'classnames';
 import { compact, flatten } from 'lodash';
 
-import { ContactName } from './ContactName';
 import { Intl } from '../Intl';
 import { LocalizerType } from '../../types/Util';
 
@@ -39,12 +38,7 @@ export class GroupNotification extends React.Component<Props> {
               key={`external-${contact.phoneNumber}`}
               className="module-group-notification__contact"
             >
-              <ContactName
-                i18n={i18n}
-                phoneNumber={contact.phoneNumber}
-                profileName={contact.profileName}
-                name={contact.name}
-              />
+              {contact.profileName || contact.phoneNumber}
             </span>
           );
 
@@ -55,7 +49,7 @@ export class GroupNotification extends React.Component<Props> {
 
     switch (type) {
       case 'name':
-        return i18n('titleIsNow', [newName || '']);
+        return `${i18n('titleIsNow', [newName || ''])}.`;
       case 'add':
         if (!contacts || !contacts.length) {
           throw new Error('Group update is missing contacts');

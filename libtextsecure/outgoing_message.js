@@ -72,6 +72,11 @@ function OutgoingMessage(
     options || {};
   this.numberInfo = numberInfo;
   this.isPublic = isPublic;
+  this.isGroup = !!(
+    this.message &&
+    this.message.dataMessage &&
+    this.message.dataMessage.group
+  );
   this.publicSendData = publicSendData;
   this.senderCertificate = senderCertificate;
   this.online = online;
@@ -345,22 +350,33 @@ OutgoingMessage.prototype = {
           } catch (e) {
             // do nothing
           }
-          if (
-            conversation &&
-            !conversation.isFriend() &&
-            !conversation.hasReceivedFriendRequest()
-          ) {
-            // We want to send an automated friend request if:
-            // - We aren't already friends
-            // - We haven't received a friend request from this device
-            // - We haven't sent a friend request recently
-            if (conversation.friendRequestTimerIsExpired()) {
-              isMultiDeviceRequest = true;
-              thisDeviceMessageType = 'friend-request';
-            } else {
-              // Throttle automated friend requests
-              this.successfulNumbers.push(devicePubKey);
-              return null;
+          if (conversation && !this.isGroup) {
+            const isOurDevice = await conversation.isOurDevice();
+            const isFriends =
+              conversation.isFriend() ||
+              conversation.hasReceivedFriendRequest();
+            // We should only send a friend request to our device if we don't have keys
+            const shouldSendAutomatedFR = isOurDevice ? !keysFound : !isFriends;
+            if (shouldSendAutomatedFR) {
+              // We want to send an automated friend request if:
+              // - We aren't already friends
+              // - We haven't received a friend request from this device
+              // - We haven't sent a friend request recently
+              if (conversation.friendRequestTimerIsExpired()) {
+                isMultiDeviceRequest = true;
+                thisDeviceMessageType = 'friend-request';
+              } else {
+                // Throttle automated friend requests
+                this.successfulNumbers.push(devicePubKey);
+                return null;
+              }
+            }
+
+            // If we're not friends with our own device then we should become friends
+            if (isOurDevice && keysFound && !isFriends) {
+              conversation.setFriendRequestStatus(
+                window.friends.friendRequestStatusEnum.friends
+              );
             }
           }
         }
@@ -375,6 +391,8 @@ OutgoingMessage.prototype = {
           : null;
         const isEndSession =
           flags === textsecure.protobuf.DataMessage.Flags.END_SESSION;
+        const isSessionRequest =
+          flags === textsecure.protobuf.DataMessage.Flags.SESSION_REQUEST;
         const signalCipher = new libsignal.SessionCipher(
           textsecure.storage.protocol,
           address
@@ -468,6 +486,8 @@ OutgoingMessage.prototype = {
           sourceDevice: 1,
           content,
           pubKey: devicePubKey,
+          isFriendRequest: enableFallBackEncryption,
+          isSessionRequest,
         };
       })
     )
@@ -477,7 +497,12 @@ OutgoingMessage.prototype = {
           if (!outgoingObject) {
             return;
           }
-          const destination = outgoingObject.pubKey;
+          const {
+            pubKey: destination,
+            ttl,
+            isFriendRequest,
+            isSessionRequest,
+          } = outgoingObject;
           try {
             const socketMessage = await this.wrapInWebsocketMessage(
               outgoingObject
@@ -486,12 +511,9 @@ OutgoingMessage.prototype = {
               destination,
               socketMessage,
               this.timestamp,
-              outgoingObject.ttl
+              ttl
             );
-            if (
-              outgoingObject.type ===
-              textsecure.protobuf.Envelope.Type.FRIEND_REQUEST
-            ) {
+            if (!this.isGroup && isFriendRequest && !isSessionRequest) {
               const conversation = ConversationController.get(destination);
               if (conversation) {
                 // Redundant for primary device but marks secondary devices as pending

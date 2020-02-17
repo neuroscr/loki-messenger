@@ -901,8 +901,8 @@ async function updateToLokiSchemaVersion1(currentVersion, instance) {
     id: 'rss://loki.network/feed/',
     rssFeed: 'https://loki.network/feed/',
     closable: true,
-    name: 'Loki.network News',
-    profileAvatar: 'images/loki/session_icon.png',
+    name: 'Loki News',
+    profileAvatar: 'images/session/session_chat_icon.png',
   };
 
   const updatesRssFeedData = {
@@ -910,8 +910,8 @@ async function updateToLokiSchemaVersion1(currentVersion, instance) {
     id: 'rss://loki.network/category/messenger-updates/feed/',
     rssFeed: 'https://loki.network/category/messenger-updates/feed/',
     closable: false,
-    name: 'Messenger updates',
-    profileAvatar: 'images/loki/session_icon.png',
+    name: 'Session Updates',
+    profileAvatar: 'images/session/session_chat_icon.png',
   };
 
   const autoJoinLokiChats = false;

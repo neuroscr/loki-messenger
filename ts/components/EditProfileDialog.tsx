@@ -1,4 +1,5 @@
 import React from 'react';
+import classNames from 'classnames';
 import { QRCode } from 'react-qr-svg';
 
 import { Avatar } from './Avatar';
@@ -71,7 +72,12 @@ export class EditProfileDialog extends React.Component<Props, State> {
     const viewDefault = this.state.mode === 'default';
     const viewEdit = this.state.mode === 'edit';
     const viewQR = this.state.mode === 'qr';
-    const sessionID = window.textsecure.storage.user.getNumber();
+
+    /* tslint:disable:no-backbone-get-set-outside-model */
+    const sessionID =
+      window.textsecure.storage.get('primaryDevicePubKey') ||
+      window.textsecure.storage.user.getNumber();
+    /* tslint:enable:no-backbone-get-set-outside-model */
 
     const backButton =
       viewEdit || viewQR
@@ -104,7 +110,14 @@ export class EditProfileDialog extends React.Component<Props, State> {
           <div className="panel-text-divider">
             <span>{window.i18n('yourSessionID')}</span>
           </div>
-          <p className="session-id-section-display">{sessionID}</p>
+          <p
+            className={classNames(
+              'text-selectable',
+              'session-id-section-display'
+            )}
+          >
+            {sessionID}
+          </p>
 
           <div className="spacer-lg" />
 

@@ -136,10 +136,12 @@
 
       conversation.initialPromise = create();
       conversation.initialPromise.then(() => {
-        Promise.all([
-          conversation.updateProfileAvatar(),
-          window.lokiSnodeAPI.refreshSwarmNodesForPubKey(id),
-        ]);
+        if (!conversation.isPublic() && !conversation.isRss()) {
+          Promise.all([
+            conversation.updateProfileAvatar(),
+            window.lokiSnodeAPI.refreshSwarmNodesForPubKey(id),
+          ]);
+        }
       });
 
       return conversation;
@@ -159,26 +161,32 @@
       if (!conversation) {
         return;
       }
-      if (conversation.isPublic()) {
+
+      // Close group leaving
+      if (conversation.isClosedGroup()) {
+        await conversation.leaveGroup();
+      } else if (conversation.isPublic()) {
         const channelAPI = await conversation.getPublicSendData();
         if (channelAPI === null) {
           log.warn(`Could not get API for public conversation ${id}`);
         } else {
           channelAPI.serverAPI.partChannel(channelAPI.channelId);
         }
+      } else if (conversation.isPrivate()) {
+        const deviceIds = await textsecure.storage.protocol.getDeviceIds(id);
+        await Promise.all(
+          deviceIds.map(deviceId => {
+            const address = new libsignal.SignalProtocolAddress(id, deviceId);
+            const sessionCipher = new libsignal.SessionCipher(
+              textsecure.storage.protocol,
+              address
+            );
+            return sessionCipher.deleteAllSessionsForDevice();
+          })
+        );
       }
+
       await conversation.destroyMessages();
-      const deviceIds = await textsecure.storage.protocol.getDeviceIds(id);
-      await Promise.all(
-        deviceIds.map(deviceId => {
-          const address = new libsignal.SignalProtocolAddress(id, deviceId);
-          const sessionCipher = new libsignal.SessionCipher(
-            textsecure.storage.protocol,
-            address
-          );
-          return sessionCipher.deleteAllSessionsForDevice();
-        })
-      );
       await window.Signal.Data.removeConversation(id, {
         Conversation: Whisper.Conversation,
       });

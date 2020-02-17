@@ -48,6 +48,17 @@ function MessageReceiver(username, password, signalingKey, options = {}) {
   if (options.retryCached) {
     this.pending = this.queueAllCached();
   }
+
+  // only do this once to prevent duplicates
+  if (lokiPublicChatAPI) {
+    // bind events
+    lokiPublicChatAPI.on(
+      'publicMessage',
+      this.handleUnencryptedMessage.bind(this)
+    );
+  } else {
+    window.log.error('Can not handle open group data, API is not available');
+  }
 }
 
 MessageReceiver.stringToArrayBuffer = string =>
@@ -79,11 +90,11 @@ MessageReceiver.prototype.extend({
       handleRequest: this.handleRequest.bind(this),
     });
     this.httpPollingResource.pollServer();
+
+    // start polling all open group rooms you have registered
+    // if not registered yet, they'll get started when they're created
     if (lokiPublicChatAPI) {
-      lokiPublicChatAPI.on(
-        'publicMessage',
-        this.handleUnencryptedMessage.bind(this)
-      );
+      lokiPublicChatAPI.open();
     }
     // set up pollers for any RSS feeds
     feeds.forEach(feed => {
@@ -166,6 +177,7 @@ MessageReceiver.prototype.extend({
       this.wsr.close(3000, 'called close');
     }
 
+    // stop polling all open group rooms
     if (lokiPublicChatAPI) {
       await lokiPublicChatAPI.close();
     }
@@ -655,60 +667,29 @@ MessageReceiver.prototype.extend({
   async decrypt(envelope, ciphertext) {
     let promise;
 
-    // We don't have source at this point yet (with sealed sender)
-    // This needs a massive cleanup!
-    const address = new libsignal.SignalProtocolAddress(
-      envelope.source,
-      envelope.sourceDevice
-    );
-
     const ourNumber = textsecure.storage.user.getNumber();
-    const number = address.toString().split('.')[0];
-    const options = {};
-
-    // No limit on message keys if we're communicating with our other devices
-    if (ourNumber === number) {
-      options.messageKeysLimit = false;
-    }
-
-    // Will become obsolete
-    const sessionCipher = new libsignal.SessionCipher(
-      textsecure.storage.protocol,
-      address,
-      options
-    );
-
     const me = {
       number: ourNumber,
       deviceId: parseInt(textsecure.storage.user.getDeviceId(), 10),
     };
 
-    // Will become obsolete
-    const getCurrentSessionBaseKey = async () => {
-      const record = await sessionCipher.getRecord(address.toString());
-      if (!record) {
-        return null;
-      }
-      const openSession = record.getOpenSession();
-      if (!openSession) {
-        return null;
-      }
-      const { baseKey } = openSession.indexInfo;
-      return baseKey;
-    };
+    // Envelope.source will be null on UNIDENTIFIED_SENDER
+    // Don't use it there!
+    const address = new libsignal.SignalProtocolAddress(
+      envelope.source,
+      envelope.sourceDevice
+    );
 
-    // Will become obsolete
-    const captureActiveSession = async () => {
-      this.activeSessionBaseKey = await getCurrentSessionBaseKey(sessionCipher);
-    };
-
-    const handleSessionReset = async result => result;
+    const lokiSessionCipher = new libloki.crypto.LokiSessionCipher(
+      textsecure.storage.protocol,
+      address
+    );
 
     switch (envelope.type) {
       case textsecure.protobuf.Envelope.Type.CIPHERTEXT:
         window.log.info('message from', this.getEnvelopeId(envelope));
-        promise = captureActiveSession()
-          .then(() => sessionCipher.decryptWhisperMessage(ciphertext))
+        promise = lokiSessionCipher
+          .decryptWhisperMessage(ciphertext)
           .then(this.unpad);
         break;
       case textsecure.protobuf.Envelope.Type.FRIEND_REQUEST: {
@@ -725,27 +706,13 @@ MessageReceiver.prototype.extend({
       }
       case textsecure.protobuf.Envelope.Type.PREKEY_BUNDLE:
         window.log.info('prekey message from', this.getEnvelopeId(envelope));
-        promise = captureActiveSession(sessionCipher).then(async () => {
-          if (!this.activeSessionBaseKey) {
-            try {
-              const buffer = dcodeIO.ByteBuffer.wrap(ciphertext);
-              await window.libloki.storage.verifyFriendRequestAcceptPreKey(
-                envelope.source,
-                buffer
-              );
-            } catch (e) {
-              await this.removeFromCache(envelope);
-              throw e;
-            }
-          }
-          return this.decryptPreKeyWhisperMessage(
-            ciphertext,
-            sessionCipher,
-            address
-          );
-        });
+        promise = this.decryptPreKeyWhisperMessage(
+          ciphertext,
+          lokiSessionCipher,
+          address
+        );
         break;
-      case textsecure.protobuf.Envelope.Type.UNIDENTIFIED_SENDER:
+      case textsecure.protobuf.Envelope.Type.UNIDENTIFIED_SENDER: {
         window.log.info('received unidentified sender message');
 
         const secretSessionCipher = new window.Signal.Metadata.SecretSessionCipher(
@@ -823,6 +790,7 @@ MessageReceiver.prototype.extend({
             }
           );
         break;
+      }
       default:
         promise = Promise.reject(new Error('Unknown message type'));
     }
@@ -844,65 +812,6 @@ MessageReceiver.prototype.extend({
         } catch (e) {
           window.log.info('Error getting conversation: ', envelope.source);
         }
-
-        /// *** BEGIN: session reset ***
-
-        const address = new libsignal.SignalProtocolAddress(
-          envelope.source,
-          envelope.sourceDevice
-        );
-
-        const restoreActiveSession = async () => {
-          const record = await sessionCipher.getRecord(address.toString());
-          if (!record) {
-            return;
-          }
-          record.archiveCurrentState();
-
-          // NOTE: activeSessionBaseKey will be undefined here...
-          const sessionToRestore = record.sessions[this.activeSessionBaseKey];
-          record.promoteState(sessionToRestore);
-          record.updateSessionState(sessionToRestore);
-          await textsecure.storage.protocol.storeSession(
-            address.toString(),
-            record.serialize()
-          );
-        };
-        const deleteAllSessionExcept = async sessionBaseKey => {
-          const record = await sessionCipher.getRecord(address.toString());
-          if (!record) {
-            return;
-          }
-          const sessionToKeep = record.sessions[sessionBaseKey];
-          record.sessions = {};
-          record.updateSessionState(sessionToKeep);
-          await textsecure.storage.protocol.storeSession(
-            address.toString(),
-            record.serialize()
-          );
-        };
-
-        if (conversation.isSessionResetOngoing()) {
-          const currentSessionBaseKey = await getCurrentSessionBaseKey(
-            sessionCipher
-          );
-          if (
-            this.activeSessionBaseKey &&
-            currentSessionBaseKey !== this.activeSessionBaseKey
-          ) {
-            if (conversation.isSessionResetReceived()) {
-              await restoreActiveSession();
-            } else {
-              await deleteAllSessionExcept(currentSessionBaseKey);
-              await conversation.onNewSessionAdopted();
-            }
-          } else if (conversation.isSessionResetReceived()) {
-            await deleteAllSessionExcept(this.activeSessionBaseKey);
-            await conversation.onNewSessionAdopted();
-          }
-        }
-
-        /// *** END ***
 
         // Type here can actually be UNIDENTIFIED_SENDER even if
         // the underlying message is FRIEND_REQUEST
@@ -937,7 +846,7 @@ MessageReceiver.prototype.extend({
         const noSession =
           error &&
           (error.message.indexOf('No record for device') === 0 ||
-            error.messaeg.indexOf('decryptWithSessionList: list is empty') ===
+            error.message.indexOf('decryptWithSessionList: list is empty') ===
               0);
 
         if (error && error.message === 'Unknown identity key') {
@@ -1308,8 +1217,9 @@ MessageReceiver.prototype.extend({
               primaryPubKey
             );
 
+            // If we don't have a mapping on the primary then we have been unlinked
             if (!primaryMapping) {
-              return false;
+              return true;
             }
 
             // We expect the primary device to have updated its mapping
@@ -1360,7 +1270,11 @@ MessageReceiver.prototype.extend({
           }
         }
 
-        if (friendRequest) {
+        // If we got a friend request message or
+        //  if we're not friends with the current user that sent this private message
+        // Check to see if we need to auto accept their friend request
+        const isGroupMessage = !!groupId;
+        if (friendRequest || (!isGroupMessage && !conversation.isFriend())) {
           if (isMe) {
             window.log.info('refusing to add a friend request to ourselves');
             throw new Error('Cannot add a friend request for ourselves!');
@@ -1447,6 +1361,7 @@ MessageReceiver.prototype.extend({
         content.preKeyBundleMessage
       );
     }
+
     if (content.lokiAddressMessage) {
       return this.handleLokiAddressMessage(
         envelope,
@@ -1810,7 +1725,7 @@ MessageReceiver.prototype.extend({
           textsecure.storage.protocol,
           address
         );
-        builder.processPreKey(device);
+        await builder.processPreKey(device);
       })
     );
     await conversation.onSessionResetReceived();
@@ -1842,7 +1757,7 @@ MessageReceiver.prototype.extend({
     } else if (decrypted.flags & FLAGS.PROFILE_KEY_UPDATE) {
       decrypted.body = null;
       decrypted.attachments = [];
-    } else if (decrypted.flags & FLAGS.BACKGROUND_FRIEND_REQUEST) {
+    } else if (decrypted.flags & FLAGS.SESSION_REQUEST) {
       // do nothing
     } else if (decrypted.flags & FLAGS.SESSION_RESTORE) {
       // do nothing

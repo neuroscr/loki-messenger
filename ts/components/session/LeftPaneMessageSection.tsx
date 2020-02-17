@@ -69,7 +69,8 @@ export class LeftPaneMessageSection extends React.Component<Props, any> {
     this.state = {
       showComposeView: false,
       pubKeyPasted: '',
-      shouldRenderMessageOnboarding: length === 0 && renderOnboardingSetting,
+      shouldRenderMessageOnboarding:
+        length === 0 && renderOnboardingSetting && false,
       connectSuccess: false,
       loading: false,
     };
@@ -191,7 +192,7 @@ export class LeftPaneMessageSection extends React.Component<Props, any> {
     return LeftPane.RENDER_HEADER(
       labels,
       null,
-      window.i18n('compose'),
+      window.i18n('newSession'),
       this.handleToggleOverlay
     );
   }

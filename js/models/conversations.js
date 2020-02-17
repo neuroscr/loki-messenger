@@ -198,12 +198,32 @@
     isOnline() {
       return this.isMe() || this.get('isOnline');
     },
-
     isMe() {
+      return this.isOurLocalDevice() || this.isOurPrimaryDevice();
+    },
+    isOurPrimaryDevice() {
       return this.id === window.storage.get('primaryDevicePubKey');
+    },
+    async isOurDevice() {
+      if (this.isMe()) {
+        return true;
+      }
+
+      const ourDevices = await window.libloki.storage.getPairedDevicesFor(
+        this.ourNumber
+      );
+      return ourDevices.includes(this.id);
+    },
+    isOurLocalDevice() {
+      return this.id === this.ourNumber;
     },
     isPublic() {
       return !!(this.id && this.id.match(/^publicChat:/));
+    },
+    isClosedGroup() {
+      return (
+        this.get('type') === Message.GROUP && !this.isPublic() && !this.isRss()
+      );
     },
     isClosable() {
       return !this.isRss() || this.get('closable');
@@ -382,6 +402,11 @@
     },
 
     sendTypingMessage(isTyping) {
+      // Loki - Temporarily disable typing messages for groups
+      if (!this.isPrivate()) {
+        return;
+      }
+
       const groupId = !this.isPrivate() ? this.id : null;
       const recipientId = this.isPrivate() ? this.id : null;
       const groupNumbers = this.getRecipients();
@@ -556,6 +581,7 @@
         type: this.isPrivate() ? 'direct' : 'group',
         isMe: this.isMe(),
         isPublic: this.isPublic(),
+        isRss: this.isRss(),
         isClosable: this.isClosable(),
         isTyping: typingKeys.length > 0,
         lastUpdated: this.get('timestamp'),
@@ -1518,11 +1544,14 @@
           now
         );
 
+        const conversationType = this.get('type');
+
         let messageWithSchema = null;
 
         // If we are a friend with any of the devices, send the message normally
         const canSendNormalMessage = await this.isFriendWithAnyDevice();
-        if (canSendNormalMessage) {
+        const isGroup = conversationType === Message.GROUP;
+        if (canSendNormalMessage || isGroup) {
           messageWithSchema = await upgradeMessageSchema({
             type: 'outgoing',
             body,
@@ -1667,8 +1696,6 @@
           );
           return message.sendSyncMessageOnly(dataMessage);
         }
-
-        const conversationType = this.get('type');
 
         const options = this.getSendOptions();
         options.messageType = message.get('type');
@@ -2321,7 +2348,7 @@
         return;
       }
 
-      if (!this.isPublic() && read.length && options.sendReadReceipts) {
+      if (this.isPrivate() && read.length && options.sendReadReceipts) {
         window.log.info(`Sending ${read.length} read receipts`);
         // Because syncReadMessages sends to our other devices, and sendReadReceipts goes
         //   to a contact, we need accessKeys for both.
@@ -2705,13 +2732,16 @@
     },
 
     deleteContact() {
-      const title = this.isPublic()
-        ? i18n('deletePublicChannel')
-        : i18n('deleteContact');
+      let title = i18n('deleteContact');
+      let message = i18n('deleteContactConfirmation');
 
-      const message = this.isPublic()
-        ? i18n('deletePublicChannelConfirmation')
-        : i18n('deleteContactConfirmation');
+      if (this.isPublic()) {
+        title = i18n('deletePublicChannel');
+        message = i18n('deletePublicChannelConfirmation');
+      } else if (this.isClosedGroup()) {
+        title = i18n('leaveClosedGroup');
+        message = i18n('leaveClosedGroupConfirmation');
+      }
 
       window.confirmationDialog({
         title,
@@ -2792,11 +2822,19 @@
 
       this.messageCollection.reset([]);
 
-      this.set({
-        lastMessage: null,
-        timestamp: null,
-        active_at: null,
-      });
+      // let's try to keep the RSS conversation open just empty...
+      if (this.isRss()) {
+        this.set({
+          lastMessage: null,
+        });
+      } else {
+        // this will remove the conversation from conversation lists...
+        this.set({
+          lastMessage: null,
+          timestamp: null,
+          active_at: null,
+        });
+      }
 
       // Reset our friend status if we're not friends
       if (!this.isFriend()) {

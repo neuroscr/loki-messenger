@@ -1,23 +1,30 @@
 /* global log, libloki, textsecure, getStoragePubKey, lokiSnodeAPI, StringView,
-  libsignal, window, TextDecoder, TextEncoder, dcodeIO */
+  libsignal, window, TextDecoder, TextEncoder, dcodeIO, process */
 
 const nodeFetch = require('node-fetch');
+const https = require('https');
 const { parse } = require('url');
+
+const snodeHttpsAgent = new https.Agent({
+  rejectUnauthorized: false,
+});
 
 const LOKI_EPHEMKEY_HEADER = 'X-Loki-EphemKey';
 const endpointBase = '/storage_rpc/v1';
 
 const decryptResponse = async (response, address) => {
+  let plaintext = false;
   try {
     const ciphertext = await response.text();
-    const plaintext = await libloki.crypto.snodeCipher.decrypt(
-      address,
-      ciphertext
-    );
+    plaintext = await libloki.crypto.snodeCipher.decrypt(address, ciphertext);
     const result = plaintext === '' ? {} : JSON.parse(plaintext);
     return result;
   } catch (e) {
-    log.warn(`Could not decrypt response from ${address}`, e);
+    log.warn(
+      `Could not decrypt response [${plaintext}] from [${address}],`,
+      e.code,
+      e.message
+    );
   }
   return {};
 };
@@ -27,12 +34,6 @@ const sendToProxy = async (options = {}, targetNode) => {
   const randSnode = await lokiSnodeAPI.getRandomSnodeAddress();
 
   const url = `https://${randSnode.ip}:${randSnode.port}/proxy`;
-
-  log.info(
-    `Proxy snode request to ${targetNode.pubkey_ed25519} via ${
-      randSnode.pubkey_ed25519
-    }`
-  );
 
   const snPubkeyHex = StringView.hexToArrayBuffer(targetNode.pubkey_x25519);
 
@@ -61,7 +62,11 @@ const sendToProxy = async (options = {}, targetNode) => {
     },
   };
 
+  // we only proxy to snodes...
+  process.env.NODE_TLS_REJECT_UNAUTHORIZED = 0;
   const response = await nodeFetch(url, firstHopOptions);
+  process.env.NODE_TLS_REJECT_UNAUTHORIZED = 1;
+
   const ciphertext = await response.text();
 
   const ciphertextBuffer = dcodeIO.ByteBuffer.wrap(
@@ -77,11 +82,34 @@ const sendToProxy = async (options = {}, targetNode) => {
   const textDecoder = new TextDecoder();
   const plaintext = textDecoder.decode(plaintextBuffer);
 
-  const jsonRes = JSON.parse(plaintext);
-
-  jsonRes.json = () => JSON.parse(jsonRes.body);
-
-  return jsonRes;
+  try {
+    const jsonRes = JSON.parse(plaintext);
+    // emulate nodeFetch response...
+    jsonRes.json = () => {
+      try {
+        return JSON.parse(jsonRes.body);
+      } catch (e) {
+        log.error(
+          'lokiRpc sendToProxy error',
+          e.code,
+          e.message,
+          'json',
+          jsonRes.body
+        );
+      }
+      return false;
+    };
+    return jsonRes;
+  } catch (e) {
+    log.error(
+      'lokiRpc sendToProxy error',
+      e.code,
+      e.message,
+      'json',
+      plaintext
+    );
+  }
+  return false;
 };
 
 // A small wrapper around node-fetch which deserializes response
@@ -115,6 +143,9 @@ const lokiFetch = async (url, options = {}, targetNode = null) => {
     timeout,
     method,
   };
+  if (url.match(/https:\/\//)) {
+    fetchOptions.agent = snodeHttpsAgent;
+  }
 
   try {
     if (window.lokiFeatureFlags.useSnodeProxy && targetNode) {
@@ -122,7 +153,12 @@ const lokiFetch = async (url, options = {}, targetNode = null) => {
       return result.json();
     }
 
+    if (url.match(/https:\/\//)) {
+      process.env.NODE_TLS_REJECT_UNAUTHORIZED = 0;
+    }
     const response = await nodeFetch(url, fetchOptions);
+    // restore TLS checking
+    process.env.NODE_TLS_REJECT_UNAUTHORIZED = 1;
 
     let result;
     // Wrong swarm

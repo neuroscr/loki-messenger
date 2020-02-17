@@ -181,11 +181,11 @@
     },
     showEditProfileDialog(options) {
       const dialog = new Whisper.EditProfileDialogView(options);
-      this.el.append(dialog.el);
+      this.el.prepend(dialog.el);
     },
     showUserDetailsDialog(options) {
       const dialog = new Whisper.UserDetailsDialogView(options);
-      this.el.append(dialog.el);
+      this.el.prepend(dialog.el);
     },
     showNicknameDialog({ pubKey, title, message, nickname, onOk, onCancel }) {
       const _title = title || `Change nickname for ${pubKey}`;
@@ -196,16 +196,16 @@
         resolve: onOk,
         reject: onCancel,
       });
-      this.el.append(dialog.el);
+      this.el.prepend(dialog.el);
       dialog.focusInput();
     },
     showPasswordDialog(options) {
       const dialog = new Whisper.PasswordDialogView(options);
-      this.el.append(dialog.el);
+      this.el.prepend(dialog.el);
     },
     showSeedDialog() {
       const dialog = new Whisper.SeedDialogView();
-      this.el.append(dialog.el);
+      this.el.prepend(dialog.el);
     },
     showQRDialog(string) {
       const dialog = new Whisper.QRDialogView({
@@ -215,12 +215,11 @@
     },
     showDevicePairingDialog(options) {
       const dialog = new Whisper.DevicePairingDialogView(options);
-
-      this.el.append(dialog.el);
+      this.el.prepend(dialog.el);
     },
     showDevicePairingWordsDialog() {
       const dialog = new Whisper.DevicePairingWordsDialogView();
-      this.el.append(dialog.el);
+      this.el.prepend(dialog.el);
     },
     showCreateGroup() {
       // TODO: make it impossible to open 2 dialogs as once
@@ -229,22 +228,30 @@
       const dialog = new Whisper.CreateGroupDialogView();
       this.el.append(dialog.el);
     },
-    showUpdateGroupDialog(groupConvo) {
-      const dialog = new Whisper.UpdateGroupDialogView(groupConvo);
+    showUpdateGroupNameDialog(groupConvo) {
+      const dialog = new Whisper.UpdateGroupNameDialogView(groupConvo);
       this.el.append(dialog.el);
     },
+    showUpdateGroupMembersDialog(groupConvo) {
+      const dialog = new Whisper.UpdateGroupMembersDialogView(groupConvo);
+      this.el.append(dialog.el);
+    },
+
     showSessionRestoreConfirmation(options) {
       const dialog = new Whisper.ConfirmSessionResetView(options);
       this.el.append(dialog.el);
     },
     showLeaveGroupDialog(groupConvo) {
-      const title = groupConvo.isPublic()
-        ? i18n('deletePublicChannel')
-        : i18n('deleteContact');
+      let title = i18n('deleteContact');
+      let message = i18n('deleteContactConfirmation');
 
-      const message = groupConvo.isPublic()
-        ? i18n('deletePublicChannelConfirmation')
-        : i18n('deleteContactConfirmation');
+      if (groupConvo.isPublic()) {
+        title = i18n('deletePublicChannel');
+        message = i18n('deletePublicChannelConfirmation');
+      } else if (groupConvo.isClosedGroup()) {
+        title = i18n('leaveClosedGroup');
+        message = i18n('leaveClosedGroupConfirmation');
+      }
 
       window.confirmationDialog({
         title,

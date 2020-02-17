@@ -10,16 +10,25 @@
     '', // no pubkey needed
     window.getDefaultFileServer()
   );
+  // use the anonymous access token
+  window.tokenlessFileServerAdnAPI.token = 'loki';
   window.tokenlessFileServerAdnAPI.pubKey = window.Signal.Crypto.base64ToArrayBuffer(
     LokiFileServerAPI.secureRpcPubKey
   );
 
+  let nextWaitSeconds = 1;
   const checkForUpgrades = async () => {
-    const response = await window.tokenlessFileServerAdnAPI.serverRequest(
+    const result = await window.tokenlessFileServerAdnAPI.serverRequest(
       'loki/v1/version/client/desktop'
     );
-    if (response && response.response) {
-      const latestVer = semver.clean(response.response.data[0][0]);
+    if (
+      result &&
+      result.response &&
+      result.response.data &&
+      result.response.data.length &&
+      result.response.data[0].length
+    ) {
+      const latestVer = semver.clean(result.response.data[0][0]);
       if (semver.valid(latestVer)) {
         const ourVersion = window.getVersion();
         if (latestVer === ourVersion) {
@@ -36,10 +45,11 @@
       }
     } else {
       // give it a minute
-      log.warn('Could not check to see if newer version is available');
+      log.warn('Could not check to see if newer version is available', result);
+      nextWaitSeconds = 60;
       setTimeout(async () => {
         await checkForUpgrades();
-      }, 60 * 1000); // wait a minute
+      }, nextWaitSeconds * 1000); // wait a minute
     }
     // no message logged means serverRequest never returned...
   };
@@ -47,13 +57,42 @@
 
   window.extension = window.extension || {};
 
+  // eslint-disable-next-line no-unused-vars
+  const resolveWhenReady = (res, rej) => {
+    if (expiredVersion !== null) {
+      return res(expiredVersion);
+    }
+    function waitForVersion() {
+      if (expiredVersion !== null) {
+        return res(expiredVersion);
+      }
+      log.info(
+        'Delaying sending checks for',
+        nextWaitSeconds,
+        's, no version yet'
+      );
+      setTimeout(waitForVersion, nextWaitSeconds * 1000);
+      return true;
+    }
+    waitForVersion();
+    return true;
+  };
+
+  // just get current status
+  window.extension.expiredStatus = () => expiredVersion;
+  // actually wait until we know for sure
+  window.extension.expiredPromise = () => new Promise(resolveWhenReady);
   window.extension.expired = cb => {
     if (expiredVersion === null) {
       // just give it another second
-      log.info('Delaying expire banner determination for 1s');
+      log.info(
+        'Delaying expire banner determination for',
+        nextWaitSeconds,
+        's'
+      );
       setTimeout(() => {
         window.extension.expired(cb);
-      }, 1000);
+      }, nextWaitSeconds * 1000);
       return;
     }
     // yes we know

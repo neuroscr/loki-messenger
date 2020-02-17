@@ -64,8 +64,12 @@ window.CONSTANTS = {
   MAX_LOGIN_TRIES: 3,
   MAX_PASSWORD_LENGTH: 32,
   MAX_USERNAME_LENGTH: 20,
+  MAX_GROUP_NAME_LENGTH: 64,
   DEFAULT_PUBLIC_CHAT_URL: appConfig.get('defaultPublicChatServer'),
   MAX_CONNECTION_DURATION: 5000,
+  MAX_MESSAGE_BODY_LENGTH: 64 * 1024,
+  // Limited due to the proof-of-work requirement
+  SMALL_GROUP_SIZE_LIMIT: 10,
 };
 
 window.versionInfo = {
@@ -74,9 +78,6 @@ window.versionInfo = {
   commitHash: window.getCommitHash(),
   appInstance: window.getAppInstance(),
 };
-
-// temporary clearnet fix
-process.env.NODE_TLS_REJECT_UNAUTHORIZED = '0';
 
 window.wrapDeferred = deferredToPromise;
 
@@ -494,15 +495,12 @@ window.shortenPubkey = pubkey => `(...${pubkey.substring(pubkey.length - 6)})`;
 
 window.pubkeyPattern = /@[a-fA-F0-9]{64,66}\b/g;
 
-// Limited due to the proof-of-work requirement
-window.SMALL_GROUP_SIZE_LIMIT = 10;
-
 // TODO: activate SealedSender once it is ready on all platforms
 window.lokiFeatureFlags = {
   multiDeviceUnpairing: true,
   privateGroupChats: true,
-  useSnodeProxy: false,
-  useSealedSender: false,
+  useSnodeProxy: true,
+  useSealedSender: true,
 };
 
 // eslint-disable-next-line no-extend-native,func-names

@@ -22,6 +22,7 @@ import { cleanSearchTerm } from '../../util/cleanSearchTerm';
 import { SessionSearchInput } from './SessionSearchInput';
 import { SessionClosableOverlay } from './SessionClosableOverlay';
 import { MainViewController } from '../MainViewController';
+import { ContactType } from './SessionMemberListItem';
 
 export interface Props {
   searchTerm: string;
@@ -37,11 +38,17 @@ export interface Props {
   clearSearch: () => void;
 }
 
+export enum SessionGroupType {
+  Open = 'open-group',
+  Closed = 'closed-group',
+}
+
 interface State {
-  showAddChannelView: boolean;
   channelUrlPasted: string;
   loading: boolean;
   connectSuccess: boolean;
+  // The type of group that is being added. Undefined in default view.
+  groupAddType: SessionGroupType | undefined;
 }
 
 export class LeftPaneChannelSection extends React.Component<Props, State> {
@@ -51,10 +58,10 @@ export class LeftPaneChannelSection extends React.Component<Props, State> {
   public constructor(props: Props) {
     super(props);
     this.state = {
-      showAddChannelView: false,
       channelUrlPasted: '',
       loading: false,
       connectSuccess: false,
+      groupAddType: undefined,
     };
 
     this.handleOnPasteUrl = this.handleOnPasteUrl.bind(this);
@@ -181,8 +188,8 @@ export class LeftPaneChannelSection extends React.Component<Props, State> {
     return (
       <div className="session-left-pane-section-content">
         {this.renderHeader()}
-        {this.state.showAddChannelView
-          ? this.renderClosableOverlay()
+        {this.state.groupAddType
+          ? this.renderClosableOverlay(this.state.groupAddType)
           : this.renderGroups()}
       </div>
     );
@@ -247,32 +254,73 @@ export class LeftPaneChannelSection extends React.Component<Props, State> {
     }
   }
 
-  private handleToggleOverlay() {
-    this.setState(prevState => ({
-      showAddChannelView: !prevState.showAddChannelView,
-    }));
+  private handleToggleOverlay(groupType?: SessionGroupType) {
+    // If no groupType, return to default view.
+    // Close the overlay with handleToggleOverlay(undefined)
+
+    switch (groupType) {
+      case SessionGroupType.Open:
+        this.setState({
+          groupAddType: SessionGroupType.Open,
+        });
+        break;
+      case SessionGroupType.Closed:
+        this.setState({
+          groupAddType: SessionGroupType.Closed,
+        });
+        break;
+      default:
+        // Exit overlay
+        this.setState({
+          groupAddType: undefined,
+        });
+    }
   }
 
-  private renderClosableOverlay() {
+  private renderClosableOverlay(groupType: SessionGroupType) {
     const { searchTerm } = this.props;
     const { loading } = this.state;
 
-    return (
+    const openGroupElement = (
       <SessionClosableOverlay
-        overlayMode="channel"
+        overlayMode={SessionGroupType.Open}
         onChangeSessionID={this.handleOnPasteUrl}
-        onCloseClick={this.handleToggleOverlay}
+        onCloseClick={() => {
+          this.handleToggleOverlay(undefined);
+        }}
         onButtonClick={this.handleJoinChannelButtonClick}
         searchTerm={searchTerm}
         updateSearch={this.updateSearchBound}
         showSpinner={loading}
       />
     );
+
+    const closedGroupElement = (
+      <SessionClosableOverlay
+        overlayMode={SessionGroupType.Closed}
+        onChangeSessionID={this.handleOnPasteUrl}
+        onCloseClick={() => {
+          this.handleToggleOverlay(undefined);
+        }}
+        onButtonClick={async (
+          groupName: string,
+          groupMembers: Array<ContactType>
+        ) => this.onCreateClosedGroup(groupName, groupMembers)}
+        searchTerm={searchTerm}
+        updateSearch={this.updateSearchBound}
+        showSpinner={loading}
+      />
+    );
+
+    return groupType === SessionGroupType.Open
+      ? openGroupElement
+      : closedGroupElement;
   }
 
   private renderBottomButtons(): JSX.Element {
     const edit = window.i18n('edit');
-    const addChannel = window.i18n('addChannel');
+    const joinOpenGroup = window.i18n('joinOpenGroup');
+    const createClosedGroup = window.i18n('createClosedGroup');
     const showEditButton = false;
 
     return (
@@ -284,11 +332,22 @@ export class LeftPaneChannelSection extends React.Component<Props, State> {
             buttonColor={SessionButtonColor.White}
           />
         )}
+
         <SessionButton
-          text={addChannel}
+          text={joinOpenGroup}
           buttonType={SessionButtonType.SquareOutline}
           buttonColor={SessionButtonColor.Green}
-          onClick={this.handleToggleOverlay}
+          onClick={() => {
+            this.handleToggleOverlay(SessionGroupType.Open);
+          }}
+        />
+        <SessionButton
+          text={createClosedGroup}
+          buttonType={SessionButtonType.SquareOutline}
+          buttonColor={SessionButtonColor.White}
+          onClick={() => {
+            this.handleToggleOverlay(SessionGroupType.Closed);
+          }}
         />
       </div>
     );
@@ -298,16 +357,17 @@ export class LeftPaneChannelSection extends React.Component<Props, State> {
     this.setState({ channelUrlPasted: value });
   }
 
-  private handleJoinChannelButtonClick() {
-    const { loading, channelUrlPasted } = this.state;
+  private handleJoinChannelButtonClick(groupUrl: string) {
+    const { loading } = this.state;
 
     if (loading) {
       return false;
     }
 
-    const regexURL = /(http:\/\/www\.|https:\/\/www\.|http:\/\/|https:\/\/)?[a-z0-9]+([\-\.]{1}[a-z0-9]+)*\.[a-z]{2,5}(:[0-9]{1,5})?(\/.*)?/;
+    // longest TLD is now (20/02/06) 24 characters per https://jasontucker.blog/8945/what-is-the-longest-tld-you-can-get-for-a-domain-name
+    const regexURL = /(http:\/\/|https:\/\/)?[a-z0-9]+([\-\.]{1}[a-z0-9]+)*\.[a-z]{2,24}(:[0-9]{1,5})?(\/.*)?/;
 
-    if (channelUrlPasted.length <= 0) {
+    if (groupUrl.length <= 0) {
       window.pushToast({
         title: window.i18n('noServerURL'),
         type: 'error',
@@ -317,7 +377,7 @@ export class LeftPaneChannelSection extends React.Component<Props, State> {
       return false;
     }
 
-    if (!regexURL.test(channelUrlPasted)) {
+    if (!regexURL.test(groupUrl)) {
       window.pushToast({
         title: window.i18n('noServerURL'),
         type: 'error',
@@ -327,7 +387,51 @@ export class LeftPaneChannelSection extends React.Component<Props, State> {
       return false;
     }
 
-    joinChannelStateManager(this, channelUrlPasted, this.handleToggleOverlay);
+    joinChannelStateManager(this, groupUrl, () => {
+      this.handleToggleOverlay(undefined);
+    });
+
+    return true;
+  }
+
+  private async onCreateClosedGroup(
+    groupName: string,
+    groupMembers: Array<ContactType>
+  ) {
+    // Validate groupName and groupMembers length
+    if (groupName.length === 0 ||
+      groupName.length > window.CONSTANTS.MAX_GROUP_NAME_LENGTH) {
+        window.pushToast({
+          title: window.i18n('invalidGroupName', window.CONSTANTS.MAX_GROUP_NAME_LENGTH),
+          type: 'error',
+          id: 'invalidGroupName',
+        });
+
+      return;
+    }
+
+    // >= because we add ourself as a member after this. so a 10 group is already invalid as it will be 11 with ourself
+    if (
+      groupMembers.length === 0 ||
+      groupMembers.length >= window.CONSTANTS.SMALL_GROUP_SIZE_LIMIT
+    ) {
+      window.pushToast({
+        title: window.i18n('invalidGroupSize', window.CONSTANTS.SMALL_GROUP_SIZE_LIMIT),
+        type: 'error',
+        id: 'invalidGroupSize',
+      });
+
+      return;
+    }
+
+    const groupMemberIds = groupMembers.map(m => m.id);
+    await window.doCreateGroup(groupName, groupMemberIds);
+    this.handleToggleOverlay(undefined);
+
+    window.pushToast({
+      title: window.i18n('closedGroupCreatedToastTitle'),
+      type: 'success',
+    });
 
     return true;
   }

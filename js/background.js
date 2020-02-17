@@ -121,7 +121,6 @@
     'x.svg',
     'x_white.svg',
     'icon-paste.svg',
-    'loki/loki_icon_text.png',
     'loki/session_icon_128.png',
   ]);
 
@@ -239,7 +238,7 @@
     specialConvInited = true;
   };
 
-  const initAPIs = async () => {
+  const initAPIs = () => {
     if (window.initialisedAPI) {
       return;
     }
@@ -252,7 +251,7 @@
     // If already exists we registered as a secondary device
     if (!window.lokiFileServerAPI) {
       window.lokiFileServerAPIFactory = new window.LokiFileServerAPI(ourKey);
-      window.lokiFileServerAPI = await window.lokiFileServerAPIFactory.establishHomeConnection(
+      window.lokiFileServerAPI = window.lokiFileServerAPIFactory.establishHomeConnection(
         window.getDefaultFileServer()
       );
     }
@@ -764,9 +763,10 @@
 
       const ev = new Event('group');
 
-      const ourKey = textsecure.storage.user.getNumber();
-
-      const allMembers = [ourKey, ...members];
+      const primaryDeviceKey =
+        window.storage.get('primaryDevicePubKey') ||
+        textsecure.storage.user.getNumber();
+      const allMembers = [primaryDeviceKey, ...members];
 
       ev.groupDetails = {
         id: groupId,
@@ -795,14 +795,14 @@
         window.friends.friendRequestStatusEnum.friends
       );
 
-      convo.updateGroupAdmins([ourKey]);
+      convo.updateGroupAdmins([primaryDeviceKey]);
 
       appView.openConversation(groupId, {});
     };
 
     window.confirmationDialog = params => {
       const confirmDialog = new Whisper.SessionConfirmView({
-        el: $('#session-confirm-container'),
+        el: $('body'),
         title: params.title,
         message: params.message,
         messageSub: params.messageSub || undefined,
@@ -969,7 +969,7 @@
         window.toasts.set(
           toastID,
           new Whisper.SessionToastView({
-            el: $('#session-toast-container'),
+            el: $('body'),
           })
         );
 
@@ -986,6 +986,18 @@
       }
 
       return toastID;
+    };
+
+    window.getFriendsFromContacts = contacts => {
+      // To call from TypeScript, input / output are both
+      // of type Array<ConversationType>
+      let friendList = contacts;
+      if (friendList !== undefined) {
+        friendList = friendList.filter(
+          friend => friend.type === 'direct' && !friend.isMe
+        );
+      }
+      return friendList;
     };
 
     // Get memberlist. This function is not accurate >>
@@ -1048,6 +1060,7 @@
       window.setMediaPermissions(!mediaPermissions);
     };
 
+    // attempts a connection to an open group server
     window.attemptConnection = async (serverURL, channelId) => {
       let rawserverURL = serverURL
         .replace(/^https?:\/\//i, '')
@@ -1056,6 +1069,7 @@
       const sslServerURL = `https://${rawserverURL}`;
       const conversationId = `publicChat:${channelId}@${rawserverURL}`;
 
+      // quickly peak to make sure we don't already have it
       const conversationExists = window.ConversationController.get(
         conversationId
       );
@@ -1066,9 +1080,11 @@
         });
       }
 
+      // get server
       const serverAPI = await window.lokiPublicChatAPI.findOrCreateServer(
         sslServerURL
       );
+      // SSL certificate failure or offline
       if (!serverAPI) {
         // Url incorrect or server not compatible
         return new Promise((_resolve, reject) => {
@@ -1076,16 +1092,21 @@
         });
       }
 
+      // create conversation
       const conversation = await window.ConversationController.getOrCreateAndWait(
         conversationId,
         'group'
       );
 
+      // convert conversation to a public one
       await conversation.setPublicSource(sslServerURL, channelId);
+      // set friend and appropriate SYNC messages for multidevice
       await conversation.setFriendRequestStatus(
-        window.friends.friendRequestStatusEnum.friends
+        window.friends.friendRequestStatusEnum.friends,
+        { blockSync: true }
       );
 
+      // and finally activate it
       conversation.getPublicSendData(); // may want "await" if you want to use the API
 
       return conversation;
@@ -1114,9 +1135,14 @@
       }
     });
 
-    Whisper.events.on('updateGroup', async groupConvo => {
+    Whisper.events.on('updateGroupName', async groupConvo => {
       if (appView) {
-        appView.showUpdateGroupDialog(groupConvo);
+        appView.showUpdateGroupNameDialog(groupConvo);
+      }
+    });
+    Whisper.events.on('updateGroupMembers', async groupConvo => {
+      if (appView) {
+        appView.showUpdateGroupMembersDialog(groupConvo);
       }
     });
 
@@ -1449,7 +1475,7 @@
       const ourKey = textsecure.storage.user.getNumber();
       window.lokiMessageAPI = new window.LokiMessageAPI(ourKey);
       window.lokiFileServerAPIFactory = new window.LokiFileServerAPI(ourKey);
-      window.lokiFileServerAPI = await window.lokiFileServerAPIFactory.establishHomeConnection(
+      window.lokiFileServerAPI = window.lokiFileServerAPIFactory.establishHomeConnection(
         window.getDefaultFileServer()
       );
       window.lokiPublicChatAPI = null;
@@ -1469,7 +1495,7 @@
       return;
     }
 
-    await initAPIs();
+    initAPIs();
     await initSpecialConversations();
     messageReceiver = new textsecure.MessageReceiver(
       USERNAME,
@@ -1955,7 +1981,10 @@
       }
       const isDuplicate = await isMessageDuplicate(message);
       if (isDuplicate) {
-        window.log.warn('Received duplicate message', message.idForLogging());
+        // RSS expects duplciates, so squelch log
+        if (!descriptorId.match(/^rss:/)) {
+          window.log.warn('Received duplicate message', message.idForLogging());
+        }
         return event.confirm();
       }
 
@@ -2112,13 +2141,16 @@
       const { wrap, sendOptions } = ConversationController.prepareForSend(
         data.source
       );
-      await wrap(
-        textsecure.messaging.sendDeliveryReceipt(
-          data.source,
-          data.timestamp,
-          sendOptions
-        )
-      );
+      const isGroup = data && data.message && data.message.group;
+      if (!isGroup) {
+        await wrap(
+          textsecure.messaging.sendDeliveryReceipt(
+            data.source,
+            data.timestamp,
+            sendOptions
+          )
+        );
+      }
     } catch (error) {
       window.log.error(
         `Failed to send delivery receipt to ${data.source} for message ${
@@ -2162,9 +2194,7 @@
           },
         });
       } else {
-        window.log.verbose(
-          `Already seen session restore for pubkey: ${pubkey}`
-        );
+        window.log.debug(`Already seen session restore for pubkey: ${pubkey}`);
         if (ev.confirm) {
           ev.confirm();
         }

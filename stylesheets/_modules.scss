@@ -36,7 +36,6 @@
 }
 
 // Module: Message
-
 .module-message {
   position: relative;
   display: inline-flex;
@@ -1234,12 +1233,20 @@
   text-align: center;
 }
 
-.module-group-notification__change {
-  margin-top: 10px;
+.module-group-notification__change,
+.module-timer-notification__message {
+  background-color: #212121;
+  width: 90%;
+  max-width: 700px;
+  margin: 10px auto;
+  padding: 5px 20px;
+  border-radius: 4px;
+  word-break: break-word;
 }
 
 .module-group-notification__contact {
-  font-weight: 300;
+  font-family: 'SF Pro Text';
+  font-weight: bold;
 }
 
 // Module: Reset Session Notification
@@ -1437,7 +1444,6 @@
   flex-direction: row;
   align-items: center;
 
-  height: $header-height;
   color: $color-gray-90;
 
   background-color: $color-white;
@@ -1461,9 +1467,7 @@
   flex-shrink: 1;
   min-width: 0;
   display: block;
-
   text-align: center;
-  height: 48px;
 }
 
 .module-conversation-header__title-text {
@@ -2008,6 +2012,7 @@
   display: flex;
   flex-direction: row;
   align-items: center;
+  margin-top: 5px;
 }
 
 .module-conversation-list-item__message__text {

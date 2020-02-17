@@ -3,15 +3,19 @@ interface Window {
   versionInfo: any;
 
   Events: any;
+  Lodash: any;
   deleteAllData: any;
   clearLocalData: any;
   getAccountManager: any;
+  getConversations: any;
+  getFriendsFromContacts: any;
   mnemonic: any;
   clipboard: any;
   attemptConnection: any;
 
   passwordUtil: any;
   userConfig: any;
+  shortenPubkey: any;
 
   dcodeIO: any;
   libsignal: any;

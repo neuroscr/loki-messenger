@@ -32,7 +32,6 @@ interface Props {
 
   phoneNumber: string;
   profileName?: string;
-  color: string;
   avatarPath?: string;
 
   isVerified: boolean;
@@ -88,7 +87,6 @@ interface Props {
 
   onCopyPublicKey: () => void;
 
-  onUpdateGroup: () => void;
   onLeaveGroup: () => void;
   onAddModerators: () => void;
   onRemoveModerators: () => void;
@@ -206,7 +204,6 @@ export class ConversationHeader extends React.Component<Props> {
   public renderAvatar() {
     const {
       avatarPath,
-      color,
       i18n,
       isGroup,
       isMe,
@@ -223,7 +220,6 @@ export class ConversationHeader extends React.Component<Props> {
       <span className="module-conversation-header__avatar">
         <Avatar
           avatarPath={avatarPath}
-          color={color}
           conversationType={conversationType}
           i18n={i18n}
           noteToSelf={isMe}
@@ -305,7 +301,6 @@ export class ConversationHeader extends React.Component<Props> {
       onDeleteMessages,
       onDeleteContact,
       onCopyPublicKey,
-      onUpdateGroup,
       onLeaveGroup,
       onAddModerators,
       onRemoveModerators,
@@ -319,11 +314,10 @@ export class ConversationHeader extends React.Component<Props> {
     return (
       <ContextMenu id={triggerId}>
         {this.renderPublicMenuItems()}
-        <MenuItem onClick={onCopyPublicKey}>{copyIdLabel}</MenuItem>
-        <MenuItem onClick={onDeleteMessages}>{i18n('deleteMessages')}</MenuItem>
-        {isPrivateGroup || amMod ? (
-          <MenuItem onClick={onUpdateGroup}>{i18n('updateGroup')}</MenuItem>
+        {!isRss ? (
+          <MenuItem onClick={onCopyPublicKey}>{copyIdLabel}</MenuItem>
         ) : null}
+        <MenuItem onClick={onDeleteMessages}>{i18n('deleteMessages')}</MenuItem>
         {amMod ? (
           <MenuItem onClick={onAddModerators}>{i18n('addModerators')}</MenuItem>
         ) : null}
@@ -380,10 +374,8 @@ export class ConversationHeader extends React.Component<Props> {
   }
 
   public render() {
-    const { id, isGroup, isPublic } = this.props;
+    const { id } = this.props;
     const triggerId = `conversation-${id}-${Date.now()}`;
-
-    const isPrivateGroup = isGroup && !isPublic;
 
     return (
       <>
@@ -395,12 +387,18 @@ export class ConversationHeader extends React.Component<Props> {
               {this.renderOptions(triggerId)}
               {this.renderTitle()}
               {/* This might be redundant as we show the title in the title: */}
-              {isPrivateGroup ? this.renderMemberCount() : null}
+              {/*isPrivateGroup ? this.renderMemberCount() : null*/}
             </div>
           </div>
           {this.renderExpirationLength()}
-          {this.renderSearch()}
-          {this.renderAvatar()}
+
+          {!this.props.isRss && (
+            <>
+              {this.renderSearch()}
+              {this.renderAvatar()}
+            </>
+          )}
+
           {this.renderMenu(triggerId)}
         </div>
       </>
@@ -417,22 +415,6 @@ export class ConversationHeader extends React.Component<Props> {
     // This is a temporary fix. In future we want to search
     // messages in the current conversation
     $('.session-search-input input').focus();
-  }
-
-  private renderMemberCount() {
-    const memberCount = this.props.isPublic
-      ? this.props.subscriberCount
-      : this.props.members.length;
-
-    if (memberCount === 0) {
-      return null;
-    }
-
-    const wordForm = memberCount === 1 ? 'member' : 'members';
-
-    return (
-      <span className="member-preview">{`(${memberCount} ${wordForm})`}</span>
-    );
   }
 
   private renderPublicMenuItems() {
@@ -495,7 +477,8 @@ export class ConversationHeader extends React.Component<Props> {
       <MenuItem onClick={onResetSession}>{i18n('resetSession')}</MenuItem>
     );
     const blockHandlerMenuItem = !isMe &&
-      !isGroup && <MenuItem onClick={blockHandler}>{blockTitle}</MenuItem>;
+      !isGroup &&
+      !isRss && <MenuItem onClick={blockHandler}>{blockTitle}</MenuItem>;
     const changeNicknameMenuItem = !isMe &&
       !isGroup && (
         <MenuItem onClick={onChangeNickname}>{i18n('changeNickname')}</MenuItem>
