@@ -1,6 +1,7 @@
 import React from 'react';
 import classNames from 'classnames';
 import { Contact, MemberList } from './MemberList';
+import { Avatar } from '../Avatar';
 
 import { SessionModal } from '../session/SessionModal';
 import { SessionButton } from '../session/SessionButton';
@@ -8,6 +9,7 @@ import { SessionButton } from '../session/SessionButton';
 interface Props {
   titleText: string;
   groupName: string;
+  groupId: string;
   okText: string;
   isPublic: boolean;
   cancelText: string;
@@ -18,15 +20,24 @@ interface Props {
   i18n: any;
   onSubmit: any;
   onClose: any;
+  // avatar stuff
+  avatarPath: string;
 }
 
 interface State {
   friendList: Array<Contact>;
   errorDisplayed: boolean;
   errorMessage: string;
+  avatar: string;
 }
 
+<<<<<<< Updated upstream:ts/components/conversation/UpdateGroupMembersDialog.tsx
 export class UpdateGroupMembersDialog extends React.Component<Props, State> {
+=======
+export class UpdateGroupDialog extends React.Component<Props, State> {
+  private readonly inputEl: any;
+
+>>>>>>> Stashed changes:ts/components/conversation/UpdateGroupDialog.tsx
   constructor(props: any) {
     super(props);
 
@@ -35,6 +46,7 @@ export class UpdateGroupMembersDialog extends React.Component<Props, State> {
     this.onKeyUp = this.onKeyUp.bind(this);
     this.closeDialog = this.closeDialog.bind(this);
     this.onGroupNameChanged = this.onGroupNameChanged.bind(this);
+    this.onFileSelected = this.onFileSelected.bind(this);
 
     let friends = this.props.friendList;
     friends = friends.map(d => {
@@ -59,7 +71,9 @@ export class UpdateGroupMembersDialog extends React.Component<Props, State> {
       friendList: friends,
       errorDisplayed: false,
       errorMessage: 'placeholder',
+      avatar: this.props.avatarPath,
     };
+    this.inputEl = React.createRef();
 
     window.addEventListener('keyup', this.onKeyUp);
   }
@@ -69,9 +83,54 @@ export class UpdateGroupMembersDialog extends React.Component<Props, State> {
       d => d.id
     );
 
+<<<<<<< Updated upstream:ts/components/conversation/UpdateGroupMembersDialog.tsx
     this.props.onSubmit(this.props.groupName, members);
+=======
+    if (!this.state.groupName.trim()) {
+      this.onShowError(this.props.i18n('emptyGroupNameError'));
+
+      return;
+    }
+
+    const avatar =
+      this.inputEl &&
+      this.inputEl.current &&
+      this.inputEl.current.files &&
+      this.inputEl.current.files.length > 0
+        ? this.inputEl.current.files[0]
+        : this.props.avatarPath; // otherwise use the current avatar
+
+    this.props.onSubmit(this.state.groupName, members, avatar);
+>>>>>>> Stashed changes:ts/components/conversation/UpdateGroupDialog.tsx
 
     this.closeDialog();
+  }
+
+  private onFileSelected() {
+    const file = this.inputEl.current.files[0];
+    const url = window.URL.createObjectURL(file);
+
+    this.setState({
+      avatar: url,
+    });
+  }
+
+  private renderAvatar() {
+    const avatarPath = this.state.avatar;
+    const color = '#00ff00';
+
+    return (
+      <Avatar
+        avatarPath={avatarPath}
+        color={color}
+        conversationType="group"
+        i18n={this.props.i18n}
+        name={this.state.groupName}
+        phoneNumber={this.props.groupId}
+        profileName={this.state.groupName}
+        size={80}
+      />
+    );
   }
 
   public render() {
@@ -82,12 +141,14 @@ export class UpdateGroupMembersDialog extends React.Component<Props, State> {
 
     let titleText;
     let noFriendsClasses;
+    let noAvatarClasses;
 
     if (this.props.isPublic) {
       // no member count in title
       titleText = `${this.props.titleText}`;
       // hide the no-friend message
       noFriendsClasses = classNames('no-friends', 'hidden');
+      noAvatarClasses = classNames('avatar-center');
     } else {
       // private group
       titleText = `${this.props.titleText} (Members: ${checkMarkedCount})`;
@@ -95,6 +156,7 @@ export class UpdateGroupMembersDialog extends React.Component<Props, State> {
         this.state.friendList.length === 0
           ? 'no-friends'
           : classNames('no-friends', 'hidden');
+      noAvatarClasses = classNames('hidden');
     }
 
     const errorMsg = this.state.errorMessage;
@@ -125,11 +187,47 @@ export class UpdateGroupMembersDialog extends React.Component<Props, State> {
         <p className={noFriendsClasses}>{`(${this.props.i18n(
           'noMembersInThisGroup'
         )})`}</p>
+<<<<<<< Updated upstream:ts/components/conversation/UpdateGroupMembersDialog.tsx
 
         <div className="session-modal__button-group">
           <SessionButton text={okText} onClick={this.onClickOK} />
 
           <SessionButton text={cancelText} onClick={this.closeDialog} />
+=======
+        <div className={noAvatarClasses}>
+          <div className="avatar-center-inner">
+            {this.renderAvatar()}
+            <div className="upload-btn-background">
+              <input
+                type="file"
+                ref={this.inputEl}
+                className="input-file"
+                placeholder="input file"
+                name="name"
+                onChange={this.onFileSelected}
+              />
+              <div
+                role="button"
+                className={'module-message__buttons__upload'}
+                onClick={() => {
+                  const el = this.inputEl.current;
+                  if (el) {
+                    el.click();
+                  }
+                }}
+              />
+            </div>
+          </div>
+        </div>
+
+        <div className="buttons">
+          <button className="cancel" tabIndex={0} onClick={this.closeDialog}>
+            {cancelText}
+          </button>
+          <button className="ok" tabIndex={0} onClick={this.onClickOK}>
+            {okText}
+          </button>
+>>>>>>> Stashed changes:ts/components/conversation/UpdateGroupDialog.tsx
         </div>
       </SessionModal>
     );
