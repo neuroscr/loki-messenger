@@ -59,6 +59,8 @@
       this.close = this.close.bind(this);
       this.onSubmit = this.onSubmit.bind(this);
       this.isPublic = groupConvo.isPublic();
+      this.groupId = groupConvo.get('Id');
+      this.avatarPath = groupConvo.getAvatarPath();
 
       const ourPK = textsecure.storage.user.getNumber();
 
@@ -71,7 +73,8 @@
       // Show a contact if they are our friend or if they are a member
       const friendsAndMembers = convos.filter(
         d =>
-          (d.isFriend() || existingMembers.includes(d.id)) &&
+          (d.isFriend() ||
+            (existingMembers && existingMembers.includes(d.id))) &&
           d.isPrivate() &&
           !d.isMe()
       );
@@ -201,18 +204,20 @@
           isAdmin: this.isAdmin,
           onClose: this.close,
           onSubmit: this.onSubmit,
+          groupId: this.groupId,
+          avatarPath: this.avatarPath,
         },
       });
 
       this.$el.append(this.dialogView.el);
       return this;
     },
-    onSubmit(groupName, newMembers) {
+    onSubmit(groupName, newMembers, avatar) {
       const ourPK = textsecure.storage.user.getNumber();
       const allMembers = window.Lodash.concat(newMembers, [ourPK]);
       const groupId = this.conversation.get('id');
 
-      window.doUpdateGroup(groupId, groupName, allMembers);
+      window.doUpdateGroup(groupId, groupName, allMembers, avatar);
     },
     close() {
       this.remove();
