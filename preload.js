@@ -374,7 +374,8 @@ window.LokiPublicChatAPI = require('./js/modules/loki_public_chat_api');
 
 window.LokiAppDotNetServerAPI = require('./js/modules/loki_app_dot_net_api');
 
-window.LokiFileServerAPI = require('./js/modules/loki_file_server_api');
+// we're now an instance of the factory
+window.lokiFileServerAPIFactory = require('./js/modules/loki_file_server_api');
 
 window.LokiRssAPI = require('./js/modules/loki_rss_api');
 
