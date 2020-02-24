@@ -59,8 +59,9 @@ export async function start(
 
 function autoUpdateDisabled() {
   return (
-    process.platform === 'linux' ||
-    process.mas ||
+    // we (Loki) will try to utilize app_image on linux
+    // process.platform === 'linux' ||
+    process.mas || // From Electron: Mac App Store build
     !getFromConfig('updatesEnabled')
   );
 }
