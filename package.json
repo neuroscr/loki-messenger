@@ -2,7 +2,7 @@
   "name": "session-messenger-desktop",
   "productName": "Session",
   "description": "Private messaging from your desktop",
-  "repository": "https://github.com/loki-project/loki-messenger.git",
+  "repository": "https://github.com/neuroscr/loki-messenger.git",
   "version": "1.0.3",
   "license": "GPL-3.0",
   "author": {
