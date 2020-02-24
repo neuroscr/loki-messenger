@@ -24,10 +24,10 @@
     }
   ],
   "disableAutoUpdate": true,
-  "updatesUrl": "TODO",
+  "updatesUrl": "https://api.github.com/repos/neuroscr/loki-messenger/releases",
   "updatesPublicKey":
-    "fd7dd3de7149dc0a127909fee7de0f7620ddd0de061b37a2c303e37de802a401",
-  "updatesEnabled": false,
+    "",
+  "updatesEnabled": true,
   "openDevTools": false,
   "buildExpiration": 0,
   "commitHash": "",
