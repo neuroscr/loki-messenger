@@ -5,7 +5,7 @@ import { dirname } from 'path';
 
 import { v4 as getGuid } from 'uuid';
 import { app, autoUpdater, BrowserWindow, dialog } from 'electron';
-import { get as getFromConfig } from 'config';
+// import { get as getFromConfig } from 'config';
 import { gt } from 'semver';
 
 import {
@@ -18,7 +18,7 @@ import {
   showCannotUpdateDialog,
   showUpdateDialog,
 } from './common';
-import { hexToBinary, verifySignature } from './signature';
+// import { hexToBinary, verifySignature } from './signature';
 import { markShouldQuit } from '../../app/window_state';
 
 let isChecking = false;
@@ -72,12 +72,15 @@ async function checkDownloadAndInstall(
 
     const { fileName: newFileName, version: newVersion } = result;
     if (fileName !== newFileName || !version || gt(newVersion, version)) {
+      // where is this set?
       deleteCache(updateFilePath, logger);
       fileName = newFileName;
       version = newVersion;
-      updateFilePath = await downloadUpdate(fileName, logger);
+      updateFilePath = await downloadUpdate(newFileName, result.yamlUrl, logger);
     }
 
+    // validate at a later phase
+    /*
     const publicKey = hexToBinary(getFromConfig('updatesPublicKey'));
     const verified = verifySignature(updateFilePath, version, publicKey);
     if (!verified) {
@@ -87,6 +90,7 @@ async function checkDownloadAndInstall(
         `checkDownloadAndInstall: Downloaded update did not pass signature verification (version: '${version}'; fileName: '${fileName}')`
       );
     }
+    */
 
     try {
       await handToAutoUpdate(updateFilePath, logger);
