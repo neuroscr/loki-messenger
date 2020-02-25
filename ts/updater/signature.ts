@@ -4,6 +4,7 @@ import {
   readFile as readFileCallback,
   writeFile as writeFileCallback,
 } from 'fs';
+import os from 'os';
 import { basename, dirname, join, resolve as resolvePath } from 'path';
 
 import pify from 'pify';
@@ -82,7 +83,25 @@ export async function _getFileHash(
 }
 
 export function getSignatureFileName(fileName: string) {
-  return `${fileName}.sig`;
+  // https://github.com/neuroscr/loki-messenger/releases/download/v1.0.3/session-messenger-desktop-mac-1.0.3.dmg
+  // https://github.com/neuroscr/loki-messenger/releases/download/v1.0.3/latest-mac.yml
+  const parts = fileName.split('/');
+  parts.pop(); // remove filename
+  const urlDir = parts.join('/');
+
+  let ymlFileName;
+  // FIXME support beta?
+  const prefix = 'latest';
+  const platform = os.platform();
+  if (platform === 'linux') {
+    ymlFileName = `${prefix}-linux.yml`;
+  } else if (platform === 'darwin') {
+    ymlFileName = `${prefix}-mac.yml`;
+  } else {
+    ymlFileName = `${prefix}.yml`;
+  }
+
+  return `${urlDir}/${ymlFileName}`;
 }
 
 export function getSignaturePath(updatePackagePath: string): string {

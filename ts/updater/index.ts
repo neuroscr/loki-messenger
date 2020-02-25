@@ -61,7 +61,6 @@ function autoUpdateDisabled() {
   return (
     // we (Loki) will try to utilize app_image on linux
     // process.platform === 'linux' ||
-    process.mas || // From Electron: Mac App Store build
-    !getFromConfig('updatesEnabled')
+    process.mas || !getFromConfig('updatesEnabled') // From Electron: Mac App Store build
   );
 }

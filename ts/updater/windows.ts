@@ -79,7 +79,7 @@ async function checkDownloadAndInstall(
       deleteCache(updateFilePath, logger);
       fileName = newFileName;
       version = newVersion;
-      updateFilePath = await downloadUpdate(fileName, logger);
+      updateFilePath = await downloadUpdate(fileName, result.yamlUrl, logger);
     }
 
     const publicKey = hexToBinary(getFromConfig('updatesPublicKey'));

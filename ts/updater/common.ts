@@ -45,7 +45,6 @@ export type LoggerType = {
 const writeFile = pify(writeFileCallback);
 const mkdirpPromise = pify(mkdirp);
 const rimrafPromise = pify(rimraf);
-const { platform } = process;
 
 export async function checkForUpdates(
   logger: LoggerType
@@ -56,7 +55,7 @@ export async function checkForUpdates(
 } | null> {
   const jsonStr = await getUpdateJson();
   const version = getVersion(jsonStr);
-  const yamlUrl = getYamlUrl(jsonStr);
+  const yamlUrl = getYamlUrl(jsonStr, logger);
 
   if (!version) {
     logger.warn('checkForUpdates: no version extracted from downloaded yaml');
@@ -66,13 +65,13 @@ export async function checkForUpdates(
 
   // always upgrade ofc
   //if (isVersionNewer(version)) {
-    logger.info(`checkForUpdates: found newer version ${version}`);
+  logger.info(`checkForUpdates: found newer version ${version}`);
 
-    return {
-      fileName: getUpdateFileName(jsonStr),
-      yamlUrl,
-      version,
-    };
+  return {
+    fileName: getUpdateFileName(jsonStr, process.platform),
+    yamlUrl,
+    version,
+  };
   /*
   }
 
@@ -91,10 +90,10 @@ export async function downloadUpdate(
 ): Promise<string> {
   // const baseUrl = getUpdatesBase();
   const updateFileUrl = `${fileName}`;
-  console.log('updateFileUrl', updateFileUrl);
+  logger.info('updateFileUrl', updateFileUrl);
 
   const signatureFileName = getSignatureFileName(fileName);
-  console.log('signatureFileName', signatureFileName);
+  logger.info('signatureFileName', signatureFileName);
   // const signatureUrl = `${baseUrl}/${signatureFileName}`;
 
   const info = getUpdateYaml(yamlUrl);
@@ -104,13 +103,17 @@ export async function downloadUpdate(
     // Squirrel requires a sha512 .sig file in this directory...
     tempDir = await createTempDir();
     const targetUpdatePath = join(tempDir, 'newSessionUpdate.zip');
-    const targetSignaturePath = join(tempDir, getSignatureFileName('newSessionUpdate.zip'));
+    const targetSignaturePath = join(
+      tempDir,
+      getSignatureFileName('newSessionUpdate.zip')
+    );
 
     /*
     logger.info(`downloadUpdate: Downloading ${signatureUrl}`);
     const { body } = await get(signatureUrl, getGotOptions());
     */
-    const body = 'ca26d0041d68db64d74900d99d326589d14e5cef99a426f81b18758c05ab2249';
+    const body =
+      'ca26d0041d68db64d74900d99d326589d14e5cef99a426f81b18758c05ab2249';
     await writeFile(targetSignaturePath, body);
 
     logger.info(`downloadUpdate: Downloading ${updateFileUrl}`);
@@ -213,8 +216,10 @@ export function getProxyUrl(): string | undefined {
 export function getUpdatesFileName(): string {
   const prefix = isBetaChannel() ? 'beta' : 'latest';
 
-  if (platform === 'darwin') {
+  if (process.platform === 'darwin') {
     return `${prefix}-mac.yml`;
+  } else if (process.platform === 'linux') {
+    return `${prefix}-linux.yml`;
   } else {
     return `${prefix}.yml`;
   }
@@ -240,40 +245,63 @@ function ghJsonToLatest(json: string): any {
   // if more than one, narrow it down
   if (data.length) {
     let selectedVersion = null;
-    data.some((ver:any) => {
+    data.some((ver: any) => {
       if (isBetaChannel()) {
         if (ver.prerelease) {
           selectedVersion = ver;
+
           return true;
         }
       } else {
         // ignore prereleaes
         if (!ver.prerelease) {
           selectedVersion = ver;
+
           return true;
         }
       }
       // continue
+
       return false;
     });
     if (selectedVersion === null) {
-      console.error('Could not find latest', isBetaChannel()?'prerelease':'',
-        'release from a list of', data.length);
+      /*
+      logger.error(
+        'Could not find latest',
+        isBetaChannel() ? 'prerelease' : '',
+        'release from a list of',
+        data.length
+      );
+      */
+
       return;
     }
     data = selectedVersion;
   }
+
   return data;
 }
 
+// can't pass logger here until unit tests can create a logger
 export function getVersion(json: string): string | undefined {
   const data = ghJsonToLatest(json);
   // return the latest version...
+
   return data && data.tag_name;
 }
 
-export function getYamlUrl(json: string): string {
-  const fileName = getUpdateFileName(json);
+export function getYamlUrl(json: string, logger: LoggerType): string {
+  const fileName = getUpdateFileName(json, process.platform);
+
+  if (fileName === '') {
+    logger.error(
+      'Sorry, platform',
+      process.platform,
+      'is not currently supported, please let us know you would like us to support this platform by opening an issue on github: https://github.com/loki-project/session-desktop/issues'
+    );
+
+    return '';
+  }
 
   const parts = fileName.split('/');
   parts.pop(); // remove filename
@@ -282,14 +310,15 @@ export function getYamlUrl(json: string): string {
   let ymlFileName;
   // FIXME support beta?
   const prefix = 'latest';
-  const platform = os.platform();
-  if (platform === 'linux') {
+
+  if (process.platform === 'linux') {
     ymlFileName = `${prefix}-linux.yml`;
-  } else if (platform === 'darwin') {
+  } else if (process.platform === 'darwin') {
     ymlFileName = `${prefix}-mac.yml`;
   } else {
     ymlFileName = `${prefix}.yml`;
   }
+
   return `${urlDir}/${ymlFileName}`;
 }
 
@@ -301,26 +330,28 @@ async function getUpdateYaml(targetUrl: string): Promise<string> {
   }
 
   const yaml = body.toString('utf8');
+
   return safeLoad(yaml, { schema: FAILSAFE_SCHEMA, json: true });
 }
 
-export function getUpdateFileName(json: string): string {
+// can't pass logger here until unit tests can create a logger
+export function getUpdateFileName(json: string, platform: string): string {
   const data = ghJsonToLatest(json);
   // data should be a single release
-  let search = 'UNKNOWN'
-  if (os.platform() == 'darwin') search = 'mac'
-  else
-  if (os.platform() == 'win32') search = 'win'
-  else
-  if (os.platform() == 'linux') search = 'linux'
-  else {
-    console.error('Sorry, platform', os.platform(), 'is not currently supported, please let us know you would like us to support this platform by opening an issue on github: https://github.com/loki-project/session-desktop/issues')
+  let search = 'UNKNOWN';
+  if (platform === 'darwin') {
+    search = 'mac';
+  } else if (platform === 'win32') {
+    search = 'win';
+  } else if (platform === 'linux') {
+    search = 'linux';
+  } else {
     return '';
   }
   // const platform = new RegExp(process.arch, 'i')
-  const searchRE = new RegExp(search, 'i')
-  let found = '' // we only need one archive for our platform and we'll figure it out
-  data.assets.some((asset:any) => {
+  const searchRE = new RegExp(search, 'i');
+  let found = ''; // we only need one archive for our platform and we'll figure it out
+  data.assets.some((asset: any) => {
     // console.log('asset', asset.browser_download_url);
 
     /*
@@ -345,29 +376,48 @@ export function getUpdateFileName(json: string): string {
     // && asset.browser_download_url.match(/-x64-/i)
 
     // AppImage
-    if (search == 'linux' && asset.browser_download_url.match(searchRE) && asset.browser_download_url.match(/\.AppImage/i)) {
+    if (
+      search === 'linux' &&
+      asset.browser_download_url.match(searchRE) &&
+      asset.browser_download_url.match(/\.AppImage/i)
+    ) {
       found = asset.browser_download_url;
+
       return true;
     }
 
     // dmg
-    if (search == 'mac' && asset.browser_download_url.match(searchRE) && asset.browser_download_url.match(/\.dmg/i)) {
+    if (
+      search === 'mac' &&
+      asset.browser_download_url.match(searchRE) &&
+      asset.browser_download_url.match(/\.dmg/i)
+    ) {
       found = asset.browser_download_url;
+
       return true;
     }
     // zip
-    if (search == 'win32' && asset.browser_download_url.match(searchRE) && asset.browser_download_url.match(/\.zip/i)) {
+    if (
+      search === 'win' &&
+      asset.browser_download_url.match(searchRE) &&
+      asset.browser_download_url.match(/\.exe/i)
+    ) {
       found = asset.browser_download_url;
+
       return true;
     }
+
     return false;
   });
 
+  /*
   if (!found) {
-    console.warn('updater/common.ts::getUpdateFileName not found', data.assets);
+    logger.warn('updater/common.ts::getUpdateFileName not found', data.assets);
   } else {
-    console.log('updater/common.ts::getUpdateFileName using', found);
+    logger.info('updater/common.ts::getUpdateFileName using', found);
   }
+  */
+
   return found;
 }
 
@@ -400,6 +450,7 @@ function getGotOptions(): GotOptions<null> {
 
 function getBaseTempDir() {
   // We only use tmpdir() when this code is run outside of an Electron app (as in: tests)
+
   return app ? join(app.getPath('userData'), 'temp') : os.tmpdir();
 }
 

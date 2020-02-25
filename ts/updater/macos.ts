@@ -76,7 +76,11 @@ async function checkDownloadAndInstall(
       deleteCache(updateFilePath, logger);
       fileName = newFileName;
       version = newVersion;
-      updateFilePath = await downloadUpdate(newFileName, result.yamlUrl, logger);
+      updateFilePath = await downloadUpdate(
+        newFileName,
+        result.yamlUrl,
+        logger
+      );
     }
 
     // validate at a later phase

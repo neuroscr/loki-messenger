@@ -419,7 +419,7 @@ async function readyForUpdates() {
 
   if (!locale) {
     console.log('locale is not ready yet, retrying in 1s');
-    return setTimeout(readyForUpdates, 1000);
+    setTimeout(readyForUpdates, 1000);
   }
 
   updatesStarted = true;
@@ -448,7 +448,10 @@ async function readyForUpdates() {
         error && error.stack ? error.stack : error
       );
     } else {
-      console.trace('Error starting update checks:', error && error.stack ? error.stack : error);
+      console.trace(
+        'Error starting update checks:',
+        error && error.stack ? error.stack : error
+      );
     }
   }
 }

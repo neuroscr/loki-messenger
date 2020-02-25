@@ -1,8 +1,55 @@
 import { assert } from 'chai';
+import os from 'os';
 
 import { getUpdateFileName, getVersion } from '../../updater/common';
 
 describe('updater/signatures', () => {
+  const githubRelease = `[
+  {
+    "url": "https://api.github.com/repos/neuroscr/loki-messenger/releases/23917539",
+    "assets_url": "https://api.github.com/repos/neuroscr/loki-messenger/releases/23917539/assets",
+    "upload_url": "https://uploads.github.com/repos/neuroscr/loki-messenger/releases/23917539/assets{?name,label}",
+    "html_url": "https://github.com/neuroscr/loki-messenger/releases/tag/v1.0.3",
+    "id": 23917539,
+    "node_id": "MDc6UmVsZWFzZTIzOTE3NTM5",
+    "tag_name": "v1.0.3",
+    "target_commitish": "clearnet",
+    "name": "1.0.3",
+    "draft": false,
+    "author": {
+      "login": "github-actions[bot]",
+      "id": 41898282,
+      "node_id": "MDM6Qm90NDE4OTgyODI=",
+      "avatar_url": "https://avatars2.githubusercontent.com/in/15368?v=4",
+      "gravatar_id": "",
+      "url": "https://api.github.com/users/github-actions%5Bbot%5D",
+      "html_url": "https://github.com/apps/github-actions",
+      "followers_url": "https://api.github.com/users/github-actions%5Bbot%5D/followers",
+      "following_url": "https://api.github.com/users/github-actions%5Bbot%5D/following{/other_user}",
+      "gists_url": "https://api.github.com/users/github-actions%5Bbot%5D/gists{/gist_id}",
+      "starred_url": "https://api.github.com/users/github-actions%5Bbot%5D/starred{/owner}{/repo}",
+      "subscriptions_url": "https://api.github.com/users/github-actions%5Bbot%5D/subscriptions",
+      "organizations_url": "https://api.github.com/users/github-actions%5Bbot%5D/orgs",
+      "repos_url": "https://api.github.com/users/github-actions%5Bbot%5D/repos",
+      "events_url": "https://api.github.com/users/github-actions%5Bbot%5D/events{/privacy}",
+      "received_events_url": "https://api.github.com/users/github-actions%5Bbot%5D/received_events",
+      "type": "Bot",
+      "site_admin": false
+    },
+    "prerelease": false,
+    "created_at": "2020-02-23T23:01:37Z",
+    "published_at": "2020-02-24T03:41:18Z",
+    "assets": [
+      { "browser_download_url": "https://github.com/neuroscr/loki-messenger/releases/download/v1.0.3/session-messenger-desktop-linux-1.0.3.AppImage" },
+      { "browser_download_url": "https://github.com/neuroscr/loki-messenger/releases/download/v1.0.3/session-messenger-desktop-mac-1.0.3.dmg" },
+      { "browser_download_url": "https://github.com/neuroscr/loki-messenger/releases/download/v1.0.3/session-messenger-desktop-win-1.0.3.exe" }
+    ],
+    "tarball_url": "https://api.github.com/repos/neuroscr/loki-messenger/tarball/v1.0.3",
+    "zipball_url": "https://api.github.com/repos/neuroscr/loki-messenger/zipball/v1.0.3",
+    "body": ""
+  }
+]`;
+
   const windows = `version: 1.23.2
 files:
   - url: signal-desktop-win-1.23.2.exe
@@ -44,26 +91,33 @@ releaseDate: '2019-03-29T01:53:23.881Z'
 
   describe('#getVersion', () => {
     it('successfully gets version', () => {
-      const expected = '1.23.2';
-      assert.strictEqual(getVersion(windows), expected);
-      assert.strictEqual(getVersion(mac), expected);
+      const expected = 'v1.0.3';
+      assert.strictEqual(getVersion(githubRelease), expected);
+      assert.strictEqual(getVersion(githubRelease), expected);
 
+      /*
       const expectedBeta = '1.23.2-beta.1';
       assert.strictEqual(getVersion(windowsBeta), expectedBeta);
       assert.strictEqual(getVersion(macBeta), expectedBeta);
+      */
     });
   });
 
   describe('#getUpdateFileName', () => {
     it('successfully gets version', () => {
       assert.strictEqual(
-        getUpdateFileName(windows),
-        'signal-desktop-win-1.23.2.exe'
+        getUpdateFileName(githubRelease, 'win32'),
+        'https://github.com/neuroscr/loki-messenger/releases/download/v1.0.3/session-messenger-desktop-win-1.0.3.exe'
       );
       assert.strictEqual(
-        getUpdateFileName(mac),
-        'signal-desktop-mac-1.23.2.zip'
+        getUpdateFileName(githubRelease, 'darwin'),
+        'https://github.com/neuroscr/loki-messenger/releases/download/v1.0.3/session-messenger-desktop-mac-1.0.3.dmg'
       );
+      assert.strictEqual(
+        getUpdateFileName(githubRelease, 'linux'),
+        'https://github.com/neuroscr/loki-messenger/releases/download/v1.0.3/session-messenger-desktop-linux-1.0.3.AppImage'
+      );
+      /*
       assert.strictEqual(
         getUpdateFileName(windowsBeta),
         'signal-desktop-beta-win-1.23.2-beta.1.exe'
@@ -72,6 +126,7 @@ releaseDate: '2019-03-29T01:53:23.881Z'
         getUpdateFileName(macBeta),
         'signal-desktop-beta-mac-1.23.2-beta.1.zip'
       );
+      */
     });
   });
 });
