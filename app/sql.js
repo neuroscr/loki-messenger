@@ -2022,6 +2022,9 @@ async function searchMessagesInConversation(
 }
 
 async function getMessageCount() {
+  if (!db) {
+    throw new Error('getMessageCount: DB not set, unable to get count of messages');
+  }
   const row = await db.get('SELECT count(*) from messages;');
 
   if (!row) {
