@@ -55,13 +55,14 @@ export async function checkForUpdates(
 } | null> {
   const jsonStr = await getUpdateJson();
   const version = getVersion(jsonStr);
-  const yamlUrl = getYamlUrl(jsonStr, logger);
-
   if (!version) {
-    logger.warn('checkForUpdates: no version extracted from downloaded yaml');
+    logger.warn('checkForUpdates: no version extracted from downloaded json', jsonStr);
 
     return null;
   }
+
+  const yamlUrl = getYamlUrl(jsonStr, logger);
+
 
   // always upgrade ofc
   //if (isVersionNewer(version)) {
@@ -292,8 +293,12 @@ export function getVersion(json: string): string | undefined {
 
 export function getYamlUrl(json: string, logger: LoggerType): string {
   const fileName = getUpdateFileName(json, process.platform);
+  if (fileName === 'a' || fileName === '') {
+    logger.error('no assets', json);
 
-  if (fileName === '') {
+    return '';
+  } else
+  if (fileName === 'p') {
     logger.error(
       'Sorry, platform',
       process.platform,
@@ -337,6 +342,12 @@ async function getUpdateYaml(targetUrl: string): Promise<string> {
 // can't pass logger here until unit tests can create a logger
 export function getUpdateFileName(json: string, platform: string): string {
   const data = ghJsonToLatest(json);
+  if (!data) {
+    return '';
+  }
+  if (!data.assets) {
+    return 'a';
+  }
   // data should be a single release
   let search = 'UNKNOWN';
   if (platform === 'darwin') {
@@ -346,7 +357,7 @@ export function getUpdateFileName(json: string, platform: string): string {
   } else if (platform === 'linux') {
     search = 'linux';
   } else {
-    return '';
+    return 'p';
   }
   // const platform = new RegExp(process.arch, 'i')
   const searchRE = new RegExp(search, 'i');
