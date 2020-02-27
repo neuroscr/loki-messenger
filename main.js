@@ -420,6 +420,7 @@ async function readyForUpdates() {
   if (!locale) {
     console.log('locale is not ready yet, retrying in 1s');
     setTimeout(readyForUpdates, 1000);
+    return;
   }
 
   updatesStarted = true;
