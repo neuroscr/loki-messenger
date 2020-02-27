@@ -106,7 +106,9 @@ async function checkDownloadAndInstall(
         await showReadOnlyDialog(getMainWindow(), messages);
       } else {
         logger.info(
-          'checkDownloadAndInstall: showing general update failure dialog...'
+          'checkDownloadAndInstall: showing general update failure dialog...',
+          error.code,
+          error.message
         );
         await showCannotUpdateDialog(getMainWindow(), messages);
       }
