@@ -1622,6 +1622,7 @@
     }
   }
   function onEmpty() {
+    window.log.info('onEmpty');
     initialLoadComplete = true;
 
     window.readyForUpdates();
